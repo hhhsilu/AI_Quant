@@ -1,0 +1,63 @@
+{
+  "generated_at": "2026-07-04T12:47:33+08:00",
+  "source": "Tushare daily; qfq where adj_factor is available",
+  "adjust": "per_stock",
+  "stocks": [
+    {
+      "stock_name": "狮头股份",
+      "ts_code": "600539.SH",
+      "exchange": "上交所",
+      "market": "A股主板",
+      "role": "既有样例，基础材料代表",
+      "symbol_dir": "600539_SH",
+      "adjust": "qfq",
+      "record_count": 242,
+      "first_trade_date": "20250704",
+      "last_trade_date": "20260703",
+      "daily_csv": "data/stocks/600539_SH/daily_qfq.csv",
+      "daily_json": "data/stocks/600539_SH/daily_qfq.json"
+    },
+    {
+      "stock_name": "中芯国际",
+      "ts_code": "688981.SH",
+      "exchange": "上交所",
+      "market": "科创板",
+      "role": "半导体制造代表",
+      "symbol_dir": "688981_SH",
+      "adjust": "none",
+      "record_count": 236,
+      "first_trade_date": "20250704",
+      "last_trade_date": "20260703",
+      "daily_csv": "data/stocks/688981_SH/daily_raw.csv",
+      "daily_json": "data/stocks/688981_SH/daily_raw.json"
+    },
+    {
+      "stock_name": "比亚迪",
+      "ts_code": "002594.SZ",
+      "exchange": "深交所",
+      "market": "A股主板",
+      "role": "新能源汽车代表",
+      "symbol_dir": "002594_SZ",
+      "adjust": "none",
+      "record_count": 242,
+      "first_trade_date": "20250704",
+      "last_trade_date": "20260703",
+      "daily_csv": "data/stocks/002594_SZ/daily_raw.csv",
+      "daily_json": "data/stocks/002594_SZ/daily_raw.json"
+    },
+    {
+      "stock_name": "三峡能源",
+      "ts_code": "600905.SH",
+      "exchange": "上交所",
+      "market": "A股主板",
+      "role": "绿色电力代表",
+      "symbol_dir": "600905_SH",
+      "adjust": "none",
+      "record_count": 242,
+      "first_trade_date": "20250704",
+      "last_trade_date": "20260703",
+      "daily_csv": "data/stocks/600905_SH/daily_raw.csv",
+      "daily_json": "data/stocks/600905_SH/daily_raw.json"
+    }
+  ]
+}
