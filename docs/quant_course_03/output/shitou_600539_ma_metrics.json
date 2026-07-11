@@ -1,0 +1,145 @@
+{
+  "metadata": {
+    "stock_name": "狮头股份",
+    "ts_code": "600539.SH",
+    "strategy": "MA5/MA15 均线交叉策略",
+    "data_range": "2025-07-04 ~ 2026-07-03",
+    "trading_days": 242,
+    "initial_capital": 100000,
+    "commission_rate": 0.0003,
+    "stamp_tax_rate": 0.0005,
+    "slippage": 0.001
+  },
+  "metrics": {
+    "final_value": 76905.49,
+    "net_profit": -23094.51,
+    "total_return_pct": -23.09,
+    "benchmark_total_return_pct": 54.83,
+    "excess_return_pct": -77.92,
+    "annualized_return_pct": -23.92,
+    "benchmark_annualized_return_pct": 57.65,
+    "max_drawdown_pct": -31.71,
+    "benchmark_max_drawdown_pct": -36.77,
+    "sharpe_ratio": -0.54,
+    "benchmark_sharpe_ratio": 1.01,
+    "total_trades": 17,
+    "completed_round_trips": 8,
+    "win_rate_pct": 25.0,
+    "avg_pnl_per_trade": -2823.81,
+    "max_profit": 11212.7,
+    "max_loss": -14297.43,
+    "profit_factor": 0.44
+  },
+  "buy_signals": [
+    {
+      "date": "2025-08-27",
+      "price": 11.6,
+      "ma_5": 11.53,
+      "ma_15": 11.33
+    },
+    {
+      "date": "2025-10-14",
+      "price": 10.55,
+      "ma_5": 10.6,
+      "ma_15": 10.59
+    },
+    {
+      "date": "2025-11-06",
+      "price": 10.98,
+      "ma_5": 10.86,
+      "ma_15": 10.81
+    },
+    {
+      "date": "2025-12-31",
+      "price": 10.18,
+      "ma_5": 10.12,
+      "ma_15": 10.1
+    },
+    {
+      "date": "2026-02-13",
+      "price": 11.1,
+      "ma_5": 11.07,
+      "ma_15": 11.01
+    },
+    {
+      "date": "2026-03-09",
+      "price": 12.41,
+      "ma_5": 11.35,
+      "ma_15": 11.31
+    },
+    {
+      "date": "2026-03-27",
+      "price": 14.21,
+      "ma_5": 12.49,
+      "ma_15": 12.26
+    },
+    {
+      "date": "2026-06-12",
+      "price": 16.34,
+      "ma_5": 15.44,
+      "ma_15": 15.41
+    },
+    {
+      "date": "2026-07-02",
+      "price": 17.27,
+      "ma_5": 16.0,
+      "ma_15": 15.34
+    }
+  ],
+  "sell_signals": [
+    {
+      "date": "2025-08-11",
+      "price": 11.52,
+      "ma_5": 12.72,
+      "ma_15": 12.86
+    },
+    {
+      "date": "2025-09-04",
+      "price": 10.44,
+      "ma_5": 11.1,
+      "ma_15": 11.19
+    },
+    {
+      "date": "2025-10-30",
+      "price": 10.39,
+      "ma_5": 10.72,
+      "ma_15": 10.77
+    },
+    {
+      "date": "2025-11-24",
+      "price": 10.74,
+      "ma_5": 11.08,
+      "ma_15": 11.22
+    },
+    {
+      "date": "2026-02-03",
+      "price": 10.89,
+      "ma_5": 10.94,
+      "ma_15": 11.01
+    },
+    {
+      "date": "2026-03-05",
+      "price": 10.96,
+      "ma_5": 11.03,
+      "ma_15": 11.14
+    },
+    {
+      "date": "2026-03-23",
+      "price": 10.67,
+      "ma_5": 11.63,
+      "ma_15": 11.77
+    },
+    {
+      "date": "2026-05-15",
+      "price": 16.44,
+      "ma_5": 17.88,
+      "ma_15": 17.94
+    },
+    {
+      "date": "2026-06-23",
+      "price": 14.34,
+      "ma_5": 15.15,
+      "ma_15": 15.21
+    }
+  ]
+}
