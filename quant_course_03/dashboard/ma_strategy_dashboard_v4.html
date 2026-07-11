@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>均线交叉策略回测看板</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="data/stock_raw_data.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f0f2f5; color: #1a1a2e;
+  }
+
+  /* ===== Layout ===== */
+  .app { display: flex; min-height: 100vh; }
+  .main { flex: 1; padding: 24px; overflow-x: hidden; }
+
+  /* ===== Sidebar ===== */
+  .sidebar {
+    width: 300px; min-width: 300px; background: #fff;
+    border-right: 1px solid #e2e8f0; overflow-y: auto;
+    height: 100vh; position: sticky; top: 0;
+  }
+  .sidebar-header {
+    padding: 20px 20px 14px;
+    background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff;
+  }
+  .sidebar-header h1 { font-size: 15px; font-weight: 700; }
+  .sidebar-header p { font-size: 11px; opacity: 0.8; margin-top: 4px; }
+
+  .panel { border-bottom: 1px solid #f1f5f9; }
+  .panel-header {
+    padding: 11px 20px; cursor: pointer; display: flex;
+    align-items: center; justify-content: space-between;
+    user-select: none; background: #f8fafc; transition: background 0.15s;
+  }
+  .panel-header:hover { background: #eff6ff; }
+  .panel-header .ptitle { font-size: 13px; font-weight: 600; color: #1e3a5f; }
+  .panel-header .arrow { font-size: 11px; color: #94a3b8; transition: transform 0.2s; }
+  .panel.collapsed .arrow { transform: rotate(-90deg); }
+  .panel-body { padding: 14px 20px; }
+  .panel.collapsed .panel-body { display: none; }
+
+  .form-group { margin-bottom: 12px; }
+  .form-group label { display: block; font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: 500; }
+  .form-group select, .form-group input[type="date"], .form-group input[type="number"] {
+    width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1;
+    border-radius: 6px; font-size: 13px; color: #1e293b; background: #fff;
+  }
+  .form-group select:focus, .form-group input:focus {
+    outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.1);
+  }
+  .form-group .range-row { display: flex; gap: 8px; }
+  .form-group .range-row input { flex: 1; }
+
+  .slider-group { margin-bottom: 12px; }
+  .slider-group .slbl { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; margin-bottom: 4px; }
+  .slider-group .slbl .val { font-weight: 700; color: #2563eb; }
+  .slider-group input[type="range"] { width: 100%; accent-color: #2563eb; }
+
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .toggle-row .tlbl { font-size: 12px; color: #475569; }
+  .toggle-row .tval { font-size: 11px; color: #94a3b8; }
+  .switch { position: relative; width: 38px; height: 20px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider-toggle {
+    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+    background: #cbd5e1; border-radius: 20px; transition: 0.2s;
+  }
+  .slider-toggle:before {
+    content: ""; position: absolute; height: 14px; width: 14px;
+    left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.2s;
+  }
+  input:checked + .slider-toggle { background: #2563eb; }
+  input:checked + .slider-toggle:before { transform: translateX(18px); }
+
+  .btn-row { display: flex; gap: 8px; margin-top: 4px; }
+  .btn {
+    flex: 1; padding: 8px 12px; border: none; border-radius: 6px;
+    font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.15s;
+  }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-secondary { background: #e2e8f0; color: #475569; }
+  .btn-secondary:hover { background: #cbd5e1; }
+
+  .metrics-panel .metric-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; border-bottom: 1px solid #f1f5f9;
+  }
+  .metrics-panel .metric-item:last-child { border-bottom: none; }
+  .metrics-panel .m-lbl { font-size: 11px; color: #64748b; }
+  .metrics-panel .m-val { font-size: 13px; font-weight: 700; }
+  .metrics-panel .m-val.pos { color: #dc2626; }
+  .metrics-panel .m-val.neg { color: #16a34a; }
+
+  /* ===== Main content (original v1 style) ===== */
+  .header {
+    background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff;
+    padding: 28px 32px; border-radius: 12px; margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(37, 99, 235, 0.15);
+  }
+  .header h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+  .header .subtitle { font-size: 14px; opacity: 0.85; }
+  .header .meta-tags { margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .header .tag {
+    background: rgba(255,255,255,0.15); padding: 4px 12px; border-radius: 6px;
+    font-size: 12px; backdrop-filter: blur(4px);
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .metrics-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px; margin-bottom: 24px;
+  }
+  .metric-card {
+    background: #fff; border-radius: 10px; padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border-left: 4px solid #2563eb; transition: transform 0.2s;
+  }
+  .metric-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+  .metric-card .label { font-size: 12px; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric-card .value { font-size: 28px; font-weight: 700; }
+  .metric-card .sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+  .metric-card.positive { border-left-color: #dc2626; }
+  .metric-card.negative { border-left-color: #16a34a; }
+  .metric-card.positive .value { color: #dc2626; }
+  .metric-card.negative .value { color: #16a34a; }
+  .chart-card {
+    background: #fff; border-radius: 10px; padding: 20px;
+    margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .chart-card .chart-num { font-size: 12px; font-weight: 700; color: #2563eb; margin-bottom: 2px; }
+  .chart-card h2 { font-size: 16px; font-weight: 600; margin-bottom: 4px; color: #1e293b; }
+  .chart-card .chart-desc {
+    font-size: 13px; color: #64748b; line-height: 1.6; margin-bottom: 16px;
+    padding: 8px 12px; background: #f8fafc; border-radius: 6px;
+    border-left: 3px solid #93c5fd;
+  }
+  .chart-container { width: 100%; }
+  .section-title {
+    font-size: 18px; font-weight: 700; color: #1e293b;
+    margin: 32px 0 16px; padding-left: 12px; border-left: 4px solid #2563eb;
+  }
+  .signals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 768px) { .signals-grid { grid-template-columns: 1fr; } }
+  .signal-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .signal-table th { background: #f8fafc; padding: 10px 12px; text-align: left; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; }
+  .signal-table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
+  .signal-table tr:hover { background: #f8fafc; }
+  .badge-buy { background: #fef2f2; color: #dc2626; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 12px; }
+  .badge-sell { background: #f0fdf4; color: #16a34a; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 12px; }
+  .trades-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .trades-table th { background: #f8fafc; padding: 10px 12px; text-align: left; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; }
+  .trades-table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
+  .trades-table tr:hover { background: #f8fafc; }
+  .footer { text-align: center; padding: 24px; color: #94a3b8; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== SIDEBAR ===== -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h1>策略参数面板</h1>
+      <p>均线交叉策略 · 实时回测算</p>
+    </div>
+
+    <!-- Panel 1: Stock -->
+    <div class="panel" id="panelStock">
+      <div class="panel-header" onclick="togglePanel('panelStock')">
+        <span class="ptitle">股票标的</span>
+        <span class="arrow">&#9660;</span>
+      </div>
+      <div class="panel-body">
+        <div class="form-group">
+          <label>选择股票</label>
+          <select id="stockSelect"></select>
+        </div>
+        <div class="form-group">
+          <label>股票代码</label>
+          <input type="text" id="stockCode" readonly style="width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;color:#64748b;background:#f8fafc;">
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 2: Time Window -->
+    <div class="panel" id="panelTime">
+      <div class="panel-header" onclick="togglePanel('panelTime')">
+        <span class="ptitle">时间窗口</span>
+        <span class="arrow">&#9660;</span>
+      </div>
+      <div class="panel-body">
+        <div class="form-group">
+          <label>起始日期</label>
+          <input type="date" id="startDate">
+        </div>
+        <div class="form-group">
+          <label>结束日期</label>
+          <input type="date" id="endDate">
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 3: MA Parameters -->
+    <div class="panel" id="panelMA">
+      <div class="panel-header" onclick="togglePanel('panelMA')">
+        <span class="ptitle">均线参数</span>
+        <span class="arrow">&#9660;</span>
+      </div>
+      <div class="panel-body">
+        <div class="slider-group">
+          <div class="slbl"><span>短周期 SMA</span><span class="val" id="shortVal">5</span></div>
+          <input type="range" id="shortMA" min="2" max="30" value="5" oninput="onParamChange()">
+        </div>
+        <div class="slider-group">
+          <div class="slbl"><span>长周期 SMA</span><span class="val" id="longVal">15</span></div>
+          <input type="range" id="longMA" min="5" max="60" value="15" oninput="onParamChange()">
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 4: Trading Costs -->
+    <div class="panel" id="panelCost">
+      <div class="panel-header" onclick="togglePanel('panelCost')">
+        <span class="ptitle">交易成本</span>
+        <span class="arrow">&#9660;</span>
+      </div>
+      <div class="panel-body">
+        <div class="toggle-row">
+          <span class="tlbl">手续费 <span class="tval">(万三)</span></span>
+          <label class="switch"><input type="checkbox" id="commToggle" checked onchange="onParamChange()"><span class="slider-toggle"></span></label>
+        </div>
+        <div class="toggle-row">
+          <span class="tlbl">滑点 <span class="tval">(万一)</span></span>
+          <label class="switch"><input type="checkbox" id="slippageToggle" checked onchange="onParamChange()"><span class="slider-toggle"></span></label>
+        </div>
+        <div class="toggle-row">
+          <span class="tlbl">印花税 <span class="tval">(千0.5)</span></span>
+          <label class="switch"><input type="checkbox" id="stampToggle" checked onchange="onParamChange()"><span class="slider-toggle"></span></label>
+        </div>
+        <div class="form-group" style="margin-top:10px;">
+          <label>初始资金 (元)</label>
+          <input type="number" id="initCapital" value="100000" min="10000" step="10000" onchange="onParamChange()">
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="onParamChange()">应用参数</button>
+          <button class="btn btn-secondary" onclick="resetParams()">重置默认</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 5: Strategy Metrics -->
+    <div class="panel metrics-panel" id="panelMetrics">
+      <div class="panel-header" onclick="togglePanel('panelMetrics')">
+        <span class="ptitle">策略指标</span>
+        <span class="arrow">&#9660;</span>
+      </div>
+      <div class="panel-body" id="metricsPanel"></div>
+    </div>
+  </div>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <div class="main">
+    <div class="container">
+      <!-- Header -->
+      <div class="header">
+        <h1 id="titleText">均线交叉策略回测</h1>
+        <div class="subtitle">短均线上穿长均线（金叉）买入 · 短均线下穿长均线（死叉）卖出</div>
+        <div class="meta-tags" id="metaTags"></div>
+      </div>
+
+      <!-- Metrics Cards -->
+      <div class="metrics-grid" id="metricsGrid"></div>
+
+      <!-- Chart 1: Price + MA + Signals -->
+      <div class="chart-card">
+        <div class="chart-num">图 1</div>
+        <h2 id="title1">股价、均线与交易信号</h2>
+        <div class="chart-desc">展示收盘价走势及短长均线变化，红色三角为金叉买入信号、绿色倒三角为死叉卖出信号。均线交叉点即为策略信号触发位置，是判断趋势转换的核心依据。</div>
+        <div id="chartPriceMA" class="chart-container" style="height: 450px;"></div>
+      </div>
+
+      <!-- Chart 2: NAV Comparison -->
+      <div class="chart-card">
+        <div class="chart-num">图 2</div>
+        <h2>策略净值 vs 买入持有基准</h2>
+        <div class="chart-desc">红线为均线策略净值曲线，蓝虚线为同期买入持有基准。策略净值高于基准说明策略跑赢市场，反之则策略表现弱于简单持有。</div>
+        <div id="chartNAV" class="chart-container" style="height: 400px;"></div>
+      </div>
+
+      <!-- Chart 3: Drawdown -->
+      <div class="chart-card">
+        <div class="chart-num">图 3</div>
+        <h2>回撤对比</h2>
+        <div class="chart-desc">策略从历史最高净值的最大跌幅百分比。回撤越小说明风险控制能力越强，负值越大表示阶段性亏损越严重。</div>
+        <div id="chartDrawdown" class="chart-container" style="height: 300px;"></div>
+      </div>
+
+      <!-- Chart 4: Monthly Returns -->
+      <div class="chart-card">
+        <div class="chart-num">图 4</div>
+        <h2>月度收益率对比</h2>
+        <div class="chart-desc">按月统计策略与基准的收益率，红色为正收益、绿色为负收益。柱状图直观展示每月盈亏情况，便于评估策略的月度稳定性。</div>
+        <div id="chartMonthly" class="chart-container" style="height: 350px;"></div>
+      </div>
+
+      <!-- Buy/Sell Signals -->
+      <div class="section-title">交易信号明细</div>
+      <div class="signals-grid">
+        <div class="chart-card">
+          <h2 style="color: #dc2626;">买入信号（金叉）— 共 <span id="buyCount">0</span> 次</h2>
+          <table class="signal-table">
+            <thead><tr><th>日期</th><th>收盘价</th><th id="thMA5">MA5</th><th id="thMA15">MA15</th></tr></thead>
+            <tbody id="buyTable"></tbody>
+          </table>
+        </div>
+        <div class="chart-card">
+          <h2 style="color: #16a34a;">卖出信号（死叉）— 共 <span id="sellCount">0</span> 次</h2>
+          <table class="signal-table">
+            <thead><tr><th>日期</th><th>收盘价</th><th id="thMA5_2">MA5</th><th id="thMA15_2">MA15</th></tr></thead>
+            <tbody id="sellTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Trade Log -->
+      <div class="section-title">交易记录</div>
+      <div class="chart-card">
+        <table class="trades-table">
+          <thead>
+            <tr><th>#</th><th>日期</th><th>方向</th><th>成交价</th><th>股数</th><th>金额</th><th>手续费</th><th>印花税</th></tr>
+          </thead>
+          <tbody id="tradesTable"></tbody>
+        </table>
+      </div>
+
+      <div class="footer">
+        数据来源: Tushare 前复权日线 · 策略: SMA 均线交叉 · 回测引擎: 前端 JavaScript 实时计算
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ===== State =====
+var DEFAULTS = { shortMA: 5, longMA: 15, capital: 100000, comm: true, slippage: true, stamp: true };
+var charts = {};
+var currentResult = null;
+
+// ===== Init =====
+function init() {
+  // Populate stock dropdown
+  var sel = document.getElementById('stockSelect');
+  for (var i = 0; i < STOCK_DATA.length; i++) {
+    var s = STOCK_DATA[i];
+    var opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = s.name + ' (' + s.ts_code + ')';
+    sel.appendChild(opt);
+  }
+  sel.onchange = function() { onStockChange(); };
+  // Set default to first stock
+  sel.value = '0';
+  onStockChange();
+}
+
+function onStockChange() {
+  var idx = parseInt(document.getElementById('stockSelect').value);
+  var stock = STOCK_DATA[idx];
+  document.getElementById('stockCode').value = stock.ts_code;
+
+  // Set date range
+  document.getElementById('startDate').value = stock.first_date;
+  document.getElementById('endDate').value = stock.last_date;
+
+  // Update title
+  document.getElementById('titleText').textContent =
+    stock.name + ' (' + stock.ts_code + ') — MA' +
+    document.getElementById('shortMA').value + '/MA' +
+    document.getElementById('longMA').value + ' 均线交叉策略回测';
+
+  onParamChange();
+}
+
+function onParamChange() {
+  var idx = parseInt(document.getElementById('stockSelect').value);
+  var stock = STOCK_DATA[idx];
+  var shortW = parseInt(document.getElementById('shortMA').value);
+  var longW = parseInt(document.getElementById('longMA').value);
+
+  // Ensure short < long
+  if (shortW >= longW) {
+    longW = shortW + 1;
+    document.getElementById('longMA').value = longW;
+  }
+  document.getElementById('shortVal').textContent = shortW;
+  document.getElementById('longVal').textContent = longW;
+
+  // Update table headers
+  document.getElementById('thMA5').textContent = 'MA' + shortW;
+  document.getElementById('thMA15').textContent = 'MA' + longW;
+  document.getElementById('thMA5_2').textContent = 'MA' + shortW;
+  document.getElementById('thMA15_2').textContent = 'MA' + longW;
+
+  // Update title
+  document.getElementById('titleText').textContent =
+    stock.name + ' (' + stock.ts_code + ') — MA' + shortW + '/MA' + longW + ' 均线交叉策略回测';
+
+  // Get date range
+  var startDate = document.getElementById('startDate').value;
+  var endDate = document.getElementById('endDate').value;
+
+  // Filter data by date
+  var rawData = stock.data.filter(function(row) {
+    return row[0] >= startDate && row[0] <= endDate;
+  });
+
+  if (rawData.length < longW + 2) {
+    alert('数据量不足以计算均线，请扩大时间窗口');
+    return;
+  }
+
+  // Calculate
+  var result = calcStrategy(rawData, shortW, longW);
+  currentResult = result;
+
+  // Render
+  renderAll(stock, result);
+}
+
+function resetParams() {
+  document.getElementById('shortMA').value = DEFAULTS.shortMA;
+  document.getElementById('longMA').value = DEFAULTS.longMA;
+  document.getElementById('initCapital').value = DEFAULTS.capital;
+  document.getElementById('commToggle').checked = DEFAULTS.comm;
+  document.getElementById('slippageToggle').checked = DEFAULTS.slippage;
+  document.getElementById('stampToggle').checked = DEFAULTS.stamp;
+  onParamChange();
+}
+
+function togglePanel(id) {
+  var p = document.getElementById(id);
+  p.classList.toggle('collapsed');
+}
+
+// ===== Strategy Calculation =====
+function calcStrategy(rawData, shortW, longW) {
+  var capital = parseFloat(document.getElementById('initCapital').value) || 100000;
+  var useComm = document.getElementById('commToggle').checked;
+  var useSlippage = document.getElementById('slippageToggle').checked;
+  var useStamp = document.getElementById('stampToggle').checked;
+
+  var commRate = 0.0003;
+  var slippageRate = 0.0001;
+  var stampRate = 0.0005;
+
+  var n = rawData.length;
+  var dates = [], closes = [], opens = [], highs = [], lows = [], volumes = [];
+  for (var i = 0; i < n; i++) {
+    dates.push(rawData[i][0]);
+    opens.push(rawData[i][1]);
+    highs.push(rawData[i][2]);
+    lows.push(rawData[i][3]);
+    closes.push(rawData[i][4]);
+    volumes.push(rawData[i][5]);
+  }
+
+  // Calculate MA
+  var maShort = [], maLong = [];
+  for (var i = 0; i < n; i++) {
+    if (i < shortW - 1) { maShort.push(null); } else {
+      var sum = 0; for (var j = 0; j < shortW; j++) sum += closes[i - j];
+      maShort.push(sum / shortW);
+    }
+    if (i < longW - 1) { maLong.push(null); } else {
+      var sum2 = 0; for (var j = 0; j < longW; j++) sum2 += closes[i - j];
+      maLong.push(sum2 / longW);
+    }
+  }
+
+  // Signals
+  var signals = new Array(n).fill(0);
+  for (var i = 1; i < n; i++) {
+    if (maShort[i] !== null && maLong[i] !== null && maShort[i-1] !== null && maLong[i-1] !== null) {
+      var diff = maShort[i] - maLong[i];
+      var diffPrev = maShort[i-1] - maLong[i-1];
+      if (diffPrev < 0 && diff > 0) signals[i] = 1;    // Golden cross
+      if (diffPrev > 0 && diff < 0) signals[i] = -1;    // Death cross
+    }
+  }
+
+  // Positions
+  var positions = new Array(n).fill(0);
+  var pos = 0;
+  for (var i = 0; i < n; i++) {
+    if (signals[i] === 1) pos = 1;
+    if (signals[i] === -1) pos = 0;
+    positions[i] = pos;
+  }
+
+  // Backtest: signal day -> next day open trade
+  var trades = [];
+  var cash = capital, shares = 0;
+  var totalFees = 0;
+
+  for (var i = 0; i < n - 1; i++) {
+    if (signals[i] === 1 && shares === 0) {
+      var buyPrice = opens[i + 1];
+      if (useSlippage) buyPrice *= (1 + slippageRate);
+      var buyShares = Math.floor(cash / (buyPrice * 100)) * 100;
+      if (buyShares > 0) {
+        var cost = buyShares * buyPrice;
+        var fee = useComm ? Math.max(cost * commRate, 5) : 0;
+        cash -= (cost + fee);
+        shares = buyShares;
+        totalFees += fee;
+        trades.push({
+          date: dates[i + 1], action: 'BUY', price: buyPrice,
+          shares: buyShares, amount: cost, commission: fee, stampTax: 0
+        });
+      }
+    } else if (signals[i] === -1 && shares > 0) {
+      var sellPrice = opens[i + 1];
+      if (useSlippage) sellPrice *= (1 - slippageRate);
+      var revenue = shares * sellPrice;
+      var fee2 = useComm ? Math.max(revenue * commRate, 5) : 0;
+      var stamp = useStamp ? revenue * stampRate : 0;
+      cash += (revenue - fee2 - stamp);
+      totalFees += (fee2 + stamp);
+      trades.push({
+        date: dates[i + 1], action: 'SELL', price: sellPrice,
+        shares: shares, amount: revenue, commission: fee2, stampTax: stamp
+      });
+      shares = 0;
+    }
+  }
+
+  // Final value
+  var finalClose = closes[n - 1];
+  var finalValue = cash + shares * finalClose;
+
+  // NAV curves
+  var strategyNav = [capital];
+  var benchNav = [capital];
+  for (var i = 1; i < n; i++) {
+    var dailyRet = (closes[i] - closes[i-1]) / closes[i-1];
+    var stratRet = positions[i-1] * dailyRet;
+    strategyNav.push(strategyNav[i-1] * (1 + stratRet));
+    benchNav.push(benchNav[i-1] * (1 + dailyRet));
+  }
+
+  // Drawdown
+  var dd = [], benchDD = [];
+  var peak = strategyNav[0], bpeak = benchNav[0];
+  for (var i = 0; i < n; i++) {
+    if (strategyNav[i] > peak) peak = strategyNav[i];
+    dd.push((strategyNav[i] - peak) / peak * 100);
+    if (benchNav[i] > bpeak) bpeak = benchNav[i];
+    benchDD.push((benchNav[i] - bpeak) / bpeak * 100);
+  }
+
+  // Returns
+  var totalReturn = (finalValue - capital) / capital * 100;
+  var benchReturn = (closes[n-1] - closes[0]) / closes[0] * 100;
+  var tradingDays = n;
+  var annReturn = (Math.pow(1 + totalReturn / 100, 252 / tradingDays) - 1) * 100;
+  var benchAnn = (Math.pow(1 + benchReturn / 100, 252 / tradingDays) - 1) * 100;
+  var excess = totalReturn - benchReturn;
+  var maxDD = Math.min.apply(null, dd);
+  var benchMaxDD = Math.min.apply(null, benchDD);
+
+  // Sharpe
+  var dailyReturns = [];
+  for (var i = 1; i < n; i++) {
+    var dr = positions[i-1] * (closes[i] - closes[i-1]) / closes[i-1];
+    dailyReturns.push(dr);
+  }
+  var meanDR = dailyReturns.reduce(function(a, b) { return a + b; }, 0) / dailyReturns.length;
+  var varDR = dailyReturns.reduce(function(a, b) { return a + (b - meanDR) * (b - meanDR); }, 0) / dailyReturns.length;
+  var stdDR = Math.sqrt(varDR);
+  var sharpe = stdDR > 0 ? Math.sqrt(252) * (meanDR - 0.02/252) / stdDR : 0;
+
+  // Win rate & profit factor
+  var pnls = [];
+  for (var i = 0; i < trades.length - 1; i += 2) {
+    if (trades[i].action === 'BUY' && trades[i+1] && trades[i+1].action === 'SELL') {
+      var pnl = trades[i+1].amount - trades[i].amount - trades[i+1].commission - trades[i+1].stampTax - trades[i].commission;
+      pnls.push(pnl);
+    }
+  }
+  var wins = pnls.filter(function(p) { return p > 0; });
+  var losses = pnls.filter(function(p) { return p < 0; });
+  var winRate = pnls.length > 0 ? wins.length / pnls.length * 100 : 0;
+  var totalWin = wins.reduce(function(a, b) { return a + b; }, 0);
+  var totalLoss = Math.abs(losses.reduce(function(a, b) { return a + b; }, 0));
+  var profitFactor = totalLoss > 0 ? totalWin / totalLoss : (totalWin > 0 ? 999 : 0);
+
+  // Buy/sell signal details
+  var buySignals = [], sellSignals = [];
+  for (var i = 0; i < n; i++) {
+    if (signals[i] === 1) buySignals.push({ date: dates[i], price: closes[i], maShort: maShort[i], maLong: maLong[i] });
+    if (signals[i] === -1) sellSignals.push({ date: dates[i], price: closes[i], maShort: maShort[i], maLong: maLong[i] });
+  }
+
+  // Monthly returns
+  var monthlyMap = {}, benchMonthlyMap = {};
+  for (var i = 1; i < n; i++) {
+    var ym = dates[i].substring(0, 7);
+    var dr = (closes[i] - closes[i-1]) / closes[i-1];
+    var sr = positions[i-1] * dr;
+    if (!monthlyMap[ym]) monthlyMap[ym] = 1;
+    monthlyMap[ym] *= (1 + sr);
+    if (!benchMonthlyMap[ym]) benchMonthlyMap[ym] = 1;
+    benchMonthlyMap[ym] *= (1 + dr);
+  }
+
+  return {
+    dates: dates, closes: closes, volumes: volumes,
+    maShort: maShort, maLong: maLong,
+    signals: signals, positions: positions,
+    strategyNav: strategyNav, benchNav: benchNav,
+    dd: dd, benchDD: benchDD,
+    trades: trades, buySignals: buySignals, sellSignals: sellSignals,
+    metrics: {
+      finalValue: finalValue, netProfit: finalValue - capital,
+      totalReturn: totalReturn, benchReturn: benchReturn, excess: excess,
+      annReturn: annReturn, benchAnn: benchAnn,
+      maxDD: maxDD, benchMaxDD: benchMaxDD,
+      sharpe: sharpe, winRate: winRate,
+      totalTrades: trades.length, roundTrips: pnls.length,
+      profitFactor: profitFactor, totalFees: totalFees,
+      capital: capital, tradingDays: tradingDays
+    },
+    monthlyMap: monthlyMap, benchMonthlyMap: benchMonthlyMap
+  };
+}
+
+// ===== Render =====
+function renderAll(stock, r) {
+  var m = r.metrics;
+  var shortW = parseInt(document.getElementById('shortMA').value);
+  var longW = parseInt(document.getElementById('longMA').value);
+
+  // Meta tags
+  document.getElementById('metaTags').innerHTML = [
+    '<span class="tag">数据区间: ' + stock.first_date + ' ~ ' + stock.last_date + '</span>',
+    '<span class="tag">交易日: ' + m.tradingDays + ' 天</span>',
+    '<span class="tag">初始资金: ¥' + m.capital.toLocaleString('zh-CN') + '</span>',
+    '<span class="tag">佣金: 万三 · 印花税: 千0.5 · 滑点: 万一</span>'
+  ].join('');
+
+  // Metrics cards
+  var cards = [
+    { label: '策略总收益率', value: m.totalReturn.toFixed(2) + '%', sub: '基准: ' + m.benchReturn.toFixed(2) + '%', cls: m.totalReturn >= 0 ? 'positive' : 'negative' },
+    { label: '策略年化收益', value: m.annReturn.toFixed(2) + '%', sub: '基准: ' + m.benchAnn.toFixed(2) + '%', cls: m.annReturn >= 0 ? 'positive' : 'negative' },
+    { label: '超额收益', value: m.excess.toFixed(2) + '%', sub: '策略 - 基准', cls: m.excess >= 0 ? 'positive' : 'negative' },
+    { label: '最大回撤', value: m.maxDD.toFixed(2) + '%', sub: '基准: ' + m.benchMaxDD.toFixed(2) + '%', cls: 'negative' },
+    { label: '夏普比率', value: m.sharpe.toFixed(2), sub: '风险调整后收益', cls: m.sharpe >= 0 ? 'positive' : 'negative' },
+    { label: '胜率', value: m.winRate.toFixed(1) + '%', sub: m.roundTrips + ' 轮完整交易', cls: m.winRate >= 50 ? 'positive' : 'negative' },
+    { label: '期末资产', value: '¥' + m.finalValue.toLocaleString('zh-CN', {maximumFractionDigits: 0}), sub: '净利润: ¥' + m.netProfit.toLocaleString('zh-CN', {maximumFractionDigits: 0}), cls: m.netProfit >= 0 ? 'positive' : 'negative' },
+    { label: '盈亏比', value: m.profitFactor > 0 ? m.profitFactor.toFixed(2) : '—', sub: '总盈利 / 总亏损', cls: m.profitFactor >= 1 ? 'positive' : 'negative' },
+  ];
+  document.getElementById('metricsGrid').innerHTML = cards.map(function(c) {
+    return '<div class="metric-card ' + c.cls + '"><div class="label">' + c.label + '</div><div class="value">' + c.value + '</div><div class="sub">' + c.sub + '</div></div>';
+  }).join('');
+
+  // Sidebar metrics
+  var sm = [
+    { lbl: '年化收益', val: m.annReturn.toFixed(2) + '%', cls: m.annReturn >= 0 ? 'pos' : 'neg' },
+    { lbl: '夏普比率', val: m.sharpe.toFixed(3), cls: m.sharpe >= 0 ? 'pos' : 'neg' },
+    { lbl: '最大回撤', val: m.maxDD.toFixed(2) + '%', cls: 'neg' },
+    { lbl: '交易次数', val: m.totalTrades, cls: '' },
+    { lbl: '胜率', val: m.winRate.toFixed(1) + '%', cls: m.winRate >= 50 ? 'pos' : 'neg' },
+    { lbl: '盈亏比', val: m.profitFactor.toFixed(2), cls: m.profitFactor >= 1 ? 'pos' : 'neg' },
+    { lbl: '总费用', val: '¥' + m.totalFees.toFixed(0), cls: 'neg' },
+    { lbl: '超额收益', val: m.excess.toFixed(2) + '%', cls: m.excess >= 0 ? 'pos' : 'neg' },
+  ];
+  document.getElementById('metricsPanel').innerHTML = sm.map(function(i) {
+    return '<div class="metric-item"><span class="m-lbl">' + i.lbl + '</span><span class="m-val ' + i.cls + '">' + i.val + '</span></div>';
+  }).join('');
+
+  // Chart 1: Price + MA + Signals
+  var buyScatter = r.buySignals.map(function(s) { return [s.date, s.price]; });
+  var sellScatter = r.sellSignals.map(function(s) { return [s.date, s.price]; });
+
+  if (charts.c1) charts.c1.dispose();
+  charts.c1 = echarts.init(document.getElementById('chartPriceMA'));
+  charts.c1.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+    legend: { data: ['收盘价', 'MA' + shortW + '（短均线）', 'MA' + longW + '（长均线）', '买入信号', '卖出信号'], top: 0 },
+    grid: { left: '6%', right: '3%', bottom: '15%', top: '12%' },
+    xAxis: { type: 'category', data: r.dates, axisLabel: { rotate: 30, fontSize: 10 } },
+    yAxis: { type: 'value', name: '价格（元）', scale: true },
+    dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', start: 0, end: 100, height: 20, bottom: 5 }],
+    series: [
+      { name: '收盘价', type: 'line', data: r.closes, smooth: true, lineStyle: { width: 1.5, color: '#2563eb' }, itemStyle: { color: '#2563eb' } },
+      { name: 'MA' + shortW + '（短均线）', type: 'line', data: r.maShort, smooth: true, lineStyle: { width: 1.2, color: '#f97316' }, itemStyle: { color: '#f97316' } },
+      { name: 'MA' + longW + '（长均线）', type: 'line', data: r.maLong, smooth: true, lineStyle: { width: 1.2, color: '#7c3aed' }, itemStyle: { color: '#7c3aed' } },
+      { name: '买入信号', type: 'scatter', data: buyScatter, symbol: 'triangle', symbolSize: 14, itemStyle: { color: '#dc2626' }, z: 10 },
+      { name: '卖出信号', type: 'scatter', data: sellScatter, symbol: 'pin', symbolSize: 14, itemStyle: { color: '#16a34a' }, z: 10 },
+    ]
+  });
+
+  // Chart 2: NAV
+  if (charts.c2) charts.c2.dispose();
+  charts.c2 = echarts.init(document.getElementById('chartNAV'));
+  charts.c2.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, formatter: function(params) {
+      var html = params[0].axisValue + '<br/>';
+      params.forEach(function(p) {
+        html += '<span style="display:inline-block;width:10px;height:10px;background:' + p.color + ';border-radius:50%;margin-right:5px;"></span>' + p.seriesName + ': ¥' + Number(p.value).toLocaleString('zh-CN', {maximumFractionDigits: 0}) + '<br/>';
+      });
+      return html;
+    }},
+    legend: { data: ['均线策略净值', '买入持有基准'], top: 0 },
+    grid: { left: '7%', right: '3%', bottom: '15%', top: '12%' },
+    xAxis: { type: 'category', data: r.dates, axisLabel: { rotate: 30, fontSize: 10 } },
+    yAxis: { type: 'value', name: '净值（元）', scale: true, axisLabel: { formatter: '¥{value}' } },
+    dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', start: 0, end: 100, height: 20, bottom: 5 }],
+    series: [
+      { name: '均线策略净值', type: 'line', data: r.strategyNav, smooth: true, lineStyle: { width: 2, color: '#dc2626' }, areaStyle: { color: 'rgba(220, 38, 38, 0.05)' }, itemStyle: { color: '#dc2626' } },
+      { name: '买入持有基准', type: 'line', data: r.benchNav, smooth: true, lineStyle: { width: 2, color: '#2563eb', type: 'dashed' }, itemStyle: { color: '#2563eb' } },
+    ]
+  });
+
+  // Chart 3: Drawdown
+  if (charts.c3) charts.c3.dispose();
+  charts.c3 = echarts.init(document.getElementById('chartDrawdown'));
+  charts.c3.setOption({
+    tooltip: { trigger: 'axis', formatter: function(params) {
+      return params[0].axisValue + '<br/>回撤: ' + params[0].value.toFixed(2) + '%';
+    }},
+    legend: { data: ['策略回撤', '基准回撤'], top: 0 },
+    grid: { left: '7%', right: '3%', bottom: '15%', top: '12%' },
+    xAxis: { type: 'category', data: r.dates, axisLabel: { rotate: 30, fontSize: 10 } },
+    yAxis: { type: 'value', name: '回撤 (%)', max: 0, axisLabel: { formatter: '{value}%' } },
+    dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', start: 0, end: 100, height: 20, bottom: 5 }],
+    series: [
+      { name: '策略回撤', type: 'line', data: r.dd, smooth: true, lineStyle: { width: 1.5, color: '#dc2626' }, areaStyle: { color: 'rgba(220, 38, 38, 0.15)' }, itemStyle: { color: '#dc2626' } },
+      { name: '基准回撤', type: 'line', data: r.benchDD, smooth: true, lineStyle: { width: 1.5, color: '#2563eb', type: 'dashed' }, areaStyle: { color: 'rgba(37, 99, 235, 0.08)' }, itemStyle: { color: '#2563eb' } },
+    ]
+  });
+
+  // Chart 4: Monthly Returns
+  var months = Object.keys(r.monthlyMap).sort();
+  var stratMonthly = months.map(function(ym) { return +((r.monthlyMap[ym] - 1) * 100).toFixed(2); });
+  var benchMonthly = months.map(function(ym) { return +((r.benchMonthlyMap[ym] - 1) * 100).toFixed(2); });
+
+  if (charts.c4) charts.c4.dispose();
+  charts.c4 = echarts.init(document.getElementById('chartMonthly'));
+  charts.c4.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: function(params) {
+      var html = params[0].axisValue + '<br/>';
+      params.forEach(function(p) {
+        html += '<span style="display:inline-block;width:10px;height:10px;background:' + p.color + ';border-radius:50%;margin-right:5px;"></span>' + p.seriesName + ': ' + p.value.toFixed(2) + '%<br/>';
+      });
+      return html;
+    }},
+    legend: { data: ['策略月度收益', '基准月度收益'], top: 0 },
+    grid: { left: '5%', right: '3%', bottom: '10%', top: '12%' },
+    xAxis: { type: 'category', data: months, axisLabel: { rotate: 45, fontSize: 10 } },
+    yAxis: { type: 'value', name: '收益率 (%)', axisLabel: { formatter: '{value}%' } },
+    series: [
+      { name: '策略月度收益', type: 'bar', data: stratMonthly, itemStyle: { color: function(p) { return stratMonthly[p.dataIndex] >= 0 ? '#dc2626' : '#16a34a'; } } },
+      { name: '基准月度收益', type: 'bar', data: benchMonthly, itemStyle: { color: function(p) { return benchMonthly[p.dataIndex] >= 0 ? '#f87171' : '#4ade80'; } }, opacity: 0.6 },
+    ]
+  });
+
+  // Buy/Sell Tables
+  document.getElementById('buyCount').textContent = r.buySignals.length;
+  document.getElementById('sellCount').textContent = r.sellSignals.length;
+  document.getElementById('buyTable').innerHTML = r.buySignals.map(function(s) {
+    return '<tr><td>' + s.date + '</td><td>¥' + s.price.toFixed(2) + '</td><td>' + s.maShort.toFixed(2) + '</td><td>' + s.maLong.toFixed(2) + '</td></tr>';
+  }).join('');
+  document.getElementById('sellTable').innerHTML = r.sellSignals.map(function(s) {
+    return '<tr><td>' + s.date + '</td><td>¥' + s.price.toFixed(2) + '</td><td>' + s.maShort.toFixed(2) + '</td><td>' + s.maLong.toFixed(2) + '</td></tr>';
+  }).join('');
+
+  // Trades Table
+  document.getElementById('tradesTable').innerHTML = r.trades.map(function(t, i) {
+    return '<tr><td>' + (i+1) + '</td><td>' + t.date + '</td><td>' +
+      (t.action === 'BUY' ? '<span class="badge-buy">买入</span>' : '<span class="badge-sell">卖出</span>') +
+      '</td><td>¥' + t.price.toFixed(3) + '</td><td>' + t.shares.toLocaleString() +
+      '</td><td>¥' + t.amount.toLocaleString('zh-CN', {maximumFractionDigits: 0}) +
+      '</td><td>¥' + t.commission.toFixed(2) + '</td><td>¥' + t.stampTax.toFixed(2) + '</td></tr>';
+  }).join('');
+}
+
+// ===== Resize =====
+window.addEventListener('resize', function() {
+  for (var k in charts) { if (charts[k]) charts[k].resize(); }
+});
+
+// ===== Start =====
+init();
+</script>
+</body>
+</html>

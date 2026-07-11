@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>狮头股份 600539.SH - MA5/MA15 均线交叉策略回测</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="data/backtest_data.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f0f2f5; color: #1a1a2e; padding: 24px;
+  }
+  .header {
+    background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff;
+    padding: 28px 32px; border-radius: 12px; margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(37, 99, 235, 0.15);
+  }
+  .header h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+  .header .subtitle { font-size: 14px; opacity: 0.85; }
+  .header .meta-tags { margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .header .tag {
+    background: rgba(255,255,255,0.15); padding: 4px 12px; border-radius: 6px;
+    font-size: 12px; backdrop-filter: blur(4px);
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+  .metrics-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px; margin-bottom: 24px;
+  }
+  .metric-card {
+    background: #fff; border-radius: 10px; padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border-left: 4px solid #2563eb; transition: transform 0.2s;
+  }
+  .metric-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+  .metric-card .label { font-size: 12px; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric-card .value { font-size: 28px; font-weight: 700; }
+  .metric-card .sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+  .metric-card.positive { border-left-color: #dc2626; }
+  .metric-card.negative { border-left-color: #16a34a; }
+  .metric-card.positive .value { color: #dc2626; }
+  .metric-card.negative .value { color: #16a34a; }
+  .chart-card {
+    background: #fff; border-radius: 10px; padding: 20px;
+    margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .chart-card h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #1e293b; }
+  .chart-container { width: 100%; }
+  .section-title {
+    font-size: 18px; font-weight: 700; color: #1e293b;
+    margin: 32px 0 16px; padding-left: 12px; border-left: 4px solid #2563eb;
+  }
+  .signals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 768px) { .signals-grid { grid-template-columns: 1fr; } }
+  .signal-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .signal-table th { background: #f8fafc; padding: 10px 12px; text-align: left; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; }
+  .signal-table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
+  .signal-table tr:hover { background: #f8fafc; }
+  .badge-buy { background: #fef2f2; color: #dc2626; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 12px; }
+  .badge-sell { background: #f0fdf4; color: #16a34a; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 12px; }
+  .trades-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .trades-table th { background: #f8fafc; padding: 10px 12px; text-align: left; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; }
+  .trades-table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
+  .trades-table tr:hover { background: #f8fafc; }
+  .footer { text-align: center; padding: 24px; color: #94a3b8; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <h1>狮头股份 (600539.SH) — MA5/MA15 均线交叉策略回测</h1>
+    <div class="subtitle">短均线上穿长均线（金叉）买入 · 短均线下穿长均线（死叉）卖出</div>
+    <div class="meta-tags">
+      <span class="tag">数据区间: 2025-07-04 ~ 2026-07-03</span>
+      <span class="tag">交易日: 242 天</span>
+      <span class="tag">初始资金: ¥100,000</span>
+      <span class="tag">佣金: 万三 · 印花税: 千0.5 · 滑点: 0.1%</span>
+    </div>
+  </div>
+
+  <!-- Metrics Cards -->
+  <div class="metrics-grid" id="metricsGrid"></div>
+
+  <!-- Chart 1: Price + MA + Signals -->
+  <div class="chart-card">
+    <h2>股价、均线与交易信号</h2>
+    <div id="chartPriceMA" class="chart-container" style="height: 450px;"></div>
+  </div>
+
+  <!-- Chart 2: NAV Comparison -->
+  <div class="chart-card">
+    <h2>策略净值 vs 买入持有基准</h2>
+    <div id="chartNAV" class="chart-container" style="height: 400px;"></div>
+  </div>
+
+  <!-- Chart 3: Drawdown -->
+  <div class="chart-card">
+    <h2>回撤对比</h2>
+    <div id="chartDrawdown" class="chart-container" style="height: 300px;"></div>
+  </div>
+
+  <!-- Chart 4: Monthly Returns -->
+  <div class="chart-card">
+    <h2>月度收益率对比</h2>
+    <div id="chartMonthly" class="chart-container" style="height: 350px;"></div>
+  </div>
+
+  <!-- Buy/Sell Signals -->
+  <div class="section-title">交易信号明细</div>
+  <div class="signals-grid">
+    <div class="chart-card">
+      <h2 style="color: #dc2626;">买入信号（金叉）— 共 <span id="buyCount">0</span> 次</h2>
+      <table class="signal-table">
+        <thead><tr><th>日期</th><th>收盘价</th><th>MA5</th><th>MA15</th></tr></thead>
+        <tbody id="buyTable"></tbody>
+      </table>
+    </div>
+    <div class="chart-card">
+      <h2 style="color: #16a34a;">卖出信号（死叉）— 共 <span id="sellCount">0</span> 次</h2>
+      <table class="signal-table">
+        <thead><tr><th>日期</th><th>收盘价</th><th>MA5</th><th>MA15</th></tr></thead>
+        <tbody id="sellTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Trade Log -->
+  <div class="section-title">交易记录</div>
+  <div class="chart-card">
+    <table class="trades-table">
+      <thead>
+        <tr><th>#</th><th>日期</th><th>方向</th><th>成交价</th><th>股数</th><th>金额</th></tr>
+      </thead>
+      <tbody id="tradesTable"></tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    数据来源: Tushare 前复权日线 · 策略: MA5/MA15 均线交叉 · 回测引擎: Python + Pandas
+  </div>
+</div>
+
+<script>
+const data = backtestData;
+const m = data.metrics;
+
+// --- Metrics Cards ---
+const metricsHTML = [
+  { label: '策略总收益率', value: m.total_return_pct.toFixed(2) + '%', sub: '基准: ' + m.benchmark_total_return_pct.toFixed(2) + '%', cls: m.total_return_pct >= 0 ? 'positive' : 'negative' },
+  { label: '策略年化收益', value: m.annualized_return_pct.toFixed(2) + '%', sub: '基准: ' + m.benchmark_annualized_return_pct.toFixed(2) + '%', cls: m.annualized_return_pct >= 0 ? 'positive' : 'negative' },
+  { label: '超额收益', value: m.excess_return_pct.toFixed(2) + '%', sub: '策略 - 基准', cls: m.excess_return_pct >= 0 ? 'positive' : 'negative' },
+  { label: '最大回撤', value: m.max_drawdown_pct.toFixed(2) + '%', sub: '基准: ' + m.benchmark_max_drawdown_pct.toFixed(2) + '%', cls: 'negative' },
+  { label: '夏普比率', value: m.sharpe_ratio.toFixed(2), sub: '基准: ' + m.benchmark_sharpe_ratio.toFixed(2), cls: m.sharpe_ratio >= 0 ? 'positive' : 'negative' },
+  { label: '胜率', value: m.win_rate_pct.toFixed(1) + '%', sub: m.completed_round_trips + ' 轮完整交易', cls: m.win_rate_pct >= 50 ? 'positive' : 'negative' },
+  { label: '期末资产', value: '¥' + m.final_value.toLocaleString('zh-CN', {maximumFractionDigits: 0}), sub: '净利润: ¥' + m.net_profit.toLocaleString('zh-CN', {maximumFractionDigits: 0}), cls: m.net_profit >= 0 ? 'positive' : 'negative' },
+  { label: '盈亏比', value: m.profit_factor ? m.profit_factor.toFixed(2) : '—', sub: '最大盈利: ¥' + m.max_profit.toLocaleString('zh-CN', {maximumFractionDigits: 0}) + ' / 最大亏损: ¥' + m.max_loss.toLocaleString('zh-CN', {maximumFractionDigits: 0}), cls: m.profit_factor >= 1 ? 'positive' : 'negative' },
+];
+document.getElementById('metricsGrid').innerHTML = metricsHTML.map(c =>
+  `<div class="metric-card ${c.cls}"><div class="label">${c.label}</div><div class="value">${c.value}</div><div class="sub">${c.sub}</div></div>`
+).join('');
+
+// --- Chart 1: Price + MA + Signals ---
+const priceData = data.price_data.filter(d => d.close !== null);
+const dates = priceData.map(d => d.date);
+const closePrices = priceData.map(d => d.close);
+const ma5Data = priceData.map(d => d.ma_5);
+const ma15Data = priceData.map(d => d.ma_15);
+
+// Buy/sell markers
+const buyMarkers = data.buy_signals.map(s => {
+  const idx = dates.indexOf(s.date);
+  return { name: '买入', coord: [s.date, s.price], itemStyle: { color: '#dc2626' }, label: { show: true, formatter: '买 ' + s.price.toFixed(2), position: 'bottom', color: '#dc2626', fontSize: 10, fontWeight: 'bold' } };
+});
+const sellMarkers = data.sell_signals.map(s => {
+  return { name: '卖出', coord: [s.date, s.price], itemStyle: { color: '#16a34a' }, label: { show: true, formatter: '卖 ' + s.price.toFixed(2), position: 'top', color: '#16a34a', fontSize: 10, fontWeight: 'bold' } };
+});
+
+// Mark points for scatter (buy=symbol triangle up, sell=triangle down)
+const buyScatter = data.buy_signals.map(s => [s.date, s.price]);
+const sellScatter = data.sell_signals.map(s => [s.date, s.price]);
+
+const chart1 = echarts.init(document.getElementById('chartPriceMA'));
+chart1.setOption({
+  tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+  legend: { data: ['收盘价', 'MA5（短均线）', 'MA15（长均线）', '买入信号', '卖出信号'], top: 0 },
+  grid: { left: '6%', right: '3%', bottom: '15%', top: '12%' },
+  xAxis: { type: 'category', data: dates, axisLabel: { rotate: 30, fontSize: 10 } },
+  yAxis: { type: 'value', name: '价格（元）', scale: true },
+  dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', start: 0, end: 100, height: 20, bottom: 5 }],
+  series: [
+    { name: '收盘价', type: 'line', data: closePrices, smooth: true, lineStyle: { width: 1.5, color: '#2563eb' }, itemStyle: { color: '#2563eb' } },
+    { name: 'MA5（短均线）', type: 'line', data: ma5Data, smooth: true, lineStyle: { width: 1.2, color: '#f97316' }, itemStyle: { color: '#f97316' } },
+    { name: 'MA15（长均线）', type: 'line', data: ma15Data, smooth: true, lineStyle: { width: 1.2, color: '#7c3aed' }, itemStyle: { color: '#7c3aed' } },
+    { name: '买入信号', type: 'scatter', data: buyScatter, symbol: 'triangle', symbolSize: 14, itemStyle: { color: '#dc2626' }, z: 10 },
+    { name: '卖出信号', type: 'scatter', data: sellScatter, symbol: 'pin', symbolSize: 14, itemStyle: { color: '#16a34a' }, z: 10 },
+  ],
+  markPoint: { data: [...buyMarkers, ...sellMarkers], symbol: 'circle', symbolSize: 1 }
+});
+
+// --- Chart 2: NAV ---
+const navData = priceData.map(d => d.strategy_nav);
+const benchNavData = priceData.map(d => d.benchmark_nav);
+const chart2 = echarts.init(document.getElementById('chartNAV'));
+chart2.setOption({
+  tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, formatter: function(params) {
+    let html = params[0].axisValue + '<br/>';
+    params.forEach(p => {
+      html += `<span style="display:inline-block;width:10px;height:10px;background:${p.color};border-radius:50%;margin-right:5px;"></span>${p.seriesName}: ¥${p.value.toLocaleString('zh-CN', {maximumFractionDigits: 0})}<br/>`;
+    });
+    return html;
+  }},
+  legend: { data: ['均线策略净值', '买入持有基准'], top: 0 },
+  grid: { left: '7%', right: '3%', bottom: '15%', top: '12%' },
+  xAxis: { type: 'category', data: dates, axisLabel: { rotate: 30, fontSize: 10 } },
+  yAxis: { type: 'value', name: '净值（元）', scale: true, axisLabel: { formatter: '¥{value}' } },
+  dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', start: 0, end: 100, height: 20, bottom: 5 }],
+  series: [
+    { name: '均线策略净值', type: 'line', data: navData, smooth: true, lineStyle: { width: 2, color: '#dc2626' }, areaStyle: { color: 'rgba(220, 38, 38, 0.05)' }, itemStyle: { color: '#dc2626' } },
+    { name: '买入持有基准', type: 'line', data: benchNavData, smooth: true, lineStyle: { width: 2, color: '#2563eb', type: 'dashed' }, itemStyle: { color: '#2563eb' } },
+  ]
+});
+
+// --- Chart 3: Drawdown ---
+const ddData = priceData.map(d => d.drawdown);
+const benchDDData = priceData.map(d => {
+  // Calculate benchmark drawdown inline
+  return null; // We'll use strategy drawdown only for now
+});
+const chart3 = echarts.init(document.getElementById('chartDrawdown'));
+chart3.setOption({
+  tooltip: { trigger: 'axis', formatter: function(params) {
+    return params[0].axisValue + '<br/>回撤: ' + params[0].value.toFixed(2) + '%';
+  }},
+  legend: { data: ['策略回撤'], top: 0 },
+  grid: { left: '7%', right: '3%', bottom: '15%', top: '12%' },
+  xAxis: { type: 'category', data: dates, axisLabel: { rotate: 30, fontSize: 10 } },
+  yAxis: { type: 'value', name: '回撤 (%)', max: 0, axisLabel: { formatter: '{value}%' } },
+  dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', start: 0, end: 100, height: 20, bottom: 5 }],
+  series: [
+    { name: '策略回撤', type: 'line', data: ddData, smooth: true, lineStyle: { width: 1.5, color: '#dc2626' }, areaStyle: { color: 'rgba(220, 38, 38, 0.15)' }, itemStyle: { color: '#dc2626' } },
+  ]
+});
+
+// --- Chart 4: Monthly Returns ---
+const monthlyMap = {};
+const benchMonthlyMap = {};
+priceData.forEach(d => {
+  const ym = d.date.substring(0, 7);
+  if (!monthlyMap[ym]) monthlyMap[ym] = 1;
+  monthlyMap[ym] *= (1 + d.strategy_return / 100);
+  if (!benchMonthlyMap[ym]) benchMonthlyMap[ym] = 1;
+  benchMonthlyMap[ym] *= (1 + d.benchmark_return / 100);
+});
+const months = Object.keys(monthlyMap).sort();
+const strategyMonthly = months.map(ym => +((monthlyMap[ym] - 1) * 100).toFixed(2));
+const benchMonthly = months.map(ym => +((benchMonthlyMap[ym] - 1) * 100).toFixed(2));
+
+const chart4 = echarts.init(document.getElementById('chartMonthly'));
+chart4.setOption({
+  tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: function(params) {
+    let html = params[0].axisValue + '<br/>';
+    params.forEach(p => {
+      html += `<span style="display:inline-block;width:10px;height:10px;background:${p.color};border-radius:50%;margin-right:5px;"></span>${p.seriesName}: ${p.value.toFixed(2)}%<br/>`;
+    });
+    return html;
+  }},
+  legend: { data: ['策略月度收益', '基准月度收益'], top: 0 },
+  grid: { left: '5%', right: '3%', bottom: '10%', top: '12%' },
+  xAxis: { type: 'category', data: months, axisLabel: { rotate: 45, fontSize: 10 } },
+  yAxis: { type: 'value', name: '收益率 (%)', axisLabel: { formatter: '{value}%' } },
+  series: [
+    { name: '策略月度收益', type: 'bar', data: strategyMonthly, itemStyle: { color: function(p) { return strategyMonthly[p.dataIndex] >= 0 ? '#dc2626' : '#16a34a'; } } },
+    { name: '基准月度收益', type: 'bar', data: benchMonthly, itemStyle: { color: function(p) { return benchMonthly[p.dataIndex] >= 0 ? '#f87171' : '#4ade80'; } }, opacity: 0.6 },
+  ]
+});
+
+// --- Buy/Sell Signal Tables ---
+document.getElementById('buyCount').textContent = data.buy_signals.length;
+document.getElementById('sellCount').textContent = data.sell_signals.length;
+
+document.getElementById('buyTable').innerHTML = data.buy_signals.map(s =>
+  `<tr><td>${s.date}</td><td>¥${s.price.toFixed(2)}</td><td>${s.ma_5.toFixed(2)}</td><td>${s.ma_15.toFixed(2)}</td></tr>`
+).join('');
+
+document.getElementById('sellTable').innerHTML = data.sell_signals.map(s =>
+  `<tr><td>${s.date}</td><td>¥${s.price.toFixed(2)}</td><td>${s.ma_5.toFixed(2)}</td><td>${s.ma_15.toFixed(2)}</td></tr>`
+).join('');
+
+// --- Trades Table ---
+document.getElementById('tradesTable').innerHTML = data.trades.map((t, i) =>
+  `<tr><td>${i + 1}</td><td>${t.date}</td><td>${t.action === 'BUY' ? '<span class="badge-buy">买入</span>' : '<span class="badge-sell">卖出</span>'}</td><td>¥${t.price.toFixed(3)}</td><td>${t.shares.toLocaleString()}</td><td>¥${t.amount.toLocaleString('zh-CN', {maximumFractionDigits: 0})}</td></tr>`
+).join('');
+
+// --- Resize ---
+window.addEventListener('resize', () => {
+  chart1.resize(); chart2.resize(); chart3.resize(); chart4.resize();
+});
+</script>
+</body>
+</html>
