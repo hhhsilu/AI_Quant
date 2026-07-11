@@ -1,0 +1,124 @@
+{
+  "metadata": {
+    "stock_name": "狮头股份",
+    "ts_code": "600539.SH",
+    "strategy": "海龟交易策略 (Turtle Trading)",
+    "data_range": "2025-07-04 ~ 2026-07-03",
+    "trading_days": 242,
+    "initial_capital": 100000,
+    "commission_rate": 0.0003,
+    "stamp_tax_rate": 0.0005,
+    "slippage": 0.001,
+    "params": {
+      "entry_channel": 20,
+      "exit_channel": 10,
+      "atr_period": 20,
+      "risk_per_unit": 0.01,
+      "stop_loss_atr": 2.0,
+      "max_units": 4,
+      "add_unit_atr": 0.5
+    }
+  },
+  "metrics": {
+    "final_value": 97667.1,
+    "net_profit": -2332.9,
+    "total_return_pct": -2.33,
+    "benchmark_total_return_pct": 54.83,
+    "excess_return_pct": -57.16,
+    "annualized_return_pct": -2.43,
+    "benchmark_annualized_return_pct": 57.65,
+    "max_drawdown_pct": -22.24,
+    "benchmark_max_drawdown_pct": -36.77,
+    "sharpe_ratio": 0.5,
+    "benchmark_sharpe_ratio": 1.01,
+    "sortino_ratio": 0.81,
+    "calmar_ratio": 0.11,
+    "total_trades": 14,
+    "completed_round_trips": 3,
+    "win_rate_pct": 0.0,
+    "avg_pnl_per_trade": -761.71,
+    "max_profit": -182.29,
+    "max_loss": -1606.4,
+    "profit_factor": 0.0,
+    "stop_loss_count": 3,
+    "add_unit_count": 7
+  },
+  "buy_signals": [
+    {
+      "date": "2025-11-10",
+      "price": 11.38,
+      "upper_channel": 11.28,
+      "atr": 0.31
+    },
+    {
+      "date": "2026-01-14",
+      "price": 10.86,
+      "upper_channel": 10.79,
+      "atr": 0.29
+    },
+    {
+      "date": "2026-03-25",
+      "price": 12.91,
+      "upper_channel": 12.89,
+      "atr": 0.72
+    },
+    {
+      "date": "2026-07-02",
+      "price": 17.27,
+      "upper_channel": 17.18,
+      "atr": 1.19
+    }
+  ],
+  "sell_signals": [
+    {
+      "date": "2025-11-21",
+      "price": 10.67,
+      "lower_channel_exit": 10.82,
+      "atr": 0.37
+    },
+    {
+      "date": "2026-03-23",
+      "price": 10.67,
+      "lower_channel_exit": 11.33,
+      "atr": 0.65
+    },
+    {
+      "date": "2026-05-14",
+      "price": 16.43,
+      "lower_channel_exit": 16.5,
+      "atr": 1.48
+    }
+  ],
+  "trade_details": [
+    {
+      "buy_date": "2025-11-11",
+      "buy_price": 11.39,
+      "sell_date": "2025-11-20",
+      "sell_price": 11.12,
+      "shares": 3800,
+      "pnl": -1606.4,
+      "return_pct": -3.66,
+      "exit_type": "STOP_LOSS"
+    },
+    {
+      "buy_date": "2026-01-15",
+      "buy_price": 10.86,
+      "sell_date": "2026-01-29",
+      "sell_price": 10.88,
+      "shares": 4100,
+      "pnl": -182.29,
+      "return_pct": -0.41,
+      "exit_type": "STOP_LOSS"
+    },
+    {
+      "buy_date": "2026-03-26",
+      "buy_price": 13.01,
+      "sell_date": "2026-04-03",
+      "sell_price": 13.55,
+      "shares": 2100,
+      "pnl": -496.44,
+      "return_pct": -1.72,
+      "exit_type": "STOP_LOSS"
+    }
+  ]
+}
