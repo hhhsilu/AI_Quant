@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>量化策略对比分析工具</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+  :root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --muted: #64748b;
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --success: #16a34a;
+    --danger: #dc2626;
+    --warning: #d97706;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: var(--text); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .step-badge { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: white; font-weight: 600; font-size: 14px; }
+  .btn-primary { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; font-weight: 500; transition: all .15s; cursor: pointer; border: none; }
+  .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+  .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+  .btn-ghost { background: white; color: var(--text); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; cursor: pointer; }
+  .btn-ghost:hover { background: #f1f5f9; }
+  .input, .select { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: white; font-size: 14px; }
+  .input:focus, .select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #eff6ff; color: var(--primary); font-size: 13px; cursor: pointer; user-select: none; border: 1px solid #dbeafe; }
+  .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+  .chip.model { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+  .chip.model.active { background: #16a34a; color: white; border-color: #16a34a; }
+  .chip.strategy { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+  .chip.strategy.active { background: #d97706; color: white; border-color: #d97706; }
+  .upload-zone { border: 2px dashed #cbd5e1; border-radius: 12px; padding: 40px; text-align: center; transition: all .15s; cursor: pointer; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--primary); background: #eff6ff; }
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.data-table th { background: #f1f5f9; padding: 8px 10px; text-align: left; font-weight: 600; border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+  table.data-table td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; }
+  table.data-table tr:hover td { background: #f8fafc; }
+  .metric-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .metric-table th { background: #1e293b; color: white; padding: 8px 12px; text-align: right; font-weight: 500; }
+  .metric-table th:first-child { text-align: left; }
+  .metric-table td { padding: 7px 12px; border-bottom: 1px solid var(--border); text-align: right; }
+  .metric-table td:first-child { text-align: left; font-weight: 500; }
+  .metric-table tr:hover td { background: #f8fafc; }
+  .pos { color: #dc2626; font-weight: 600; }
+  .neg { color: #16a34a; font-weight: 600; }
+  .tab-btn { padding: 8px 16px; border-bottom: 2px solid transparent; cursor: pointer; font-weight: 500; color: var(--muted); }
+  .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .progress-bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--primary); transition: width .3s; }
+  .scroll-x { overflow-x: auto; }
+  .scroll-y { overflow-y: auto; }
+  .loading-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #cbd5e1; border-top-color: var(--primary); border-radius: 50%; animation: spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .toast { position: fixed; top: 20px; right: 20px; padding: 12px 18px; border-radius: 8px; color: white; font-size: 14px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+  .toast.success { background: var(--success); }
+  .toast.error { background: var(--danger); }
+  .toast.info { background: var(--primary); }
+  .var-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .var-item:hover { background: #f8fafc; }
+  .var-item.selected { background: #eff6ff; border-color: var(--primary); }
+  details summary { cursor: pointer; user-select: none; }
+  details summary::-webkit-details-marker { display: none; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<div class="max-w-7xl mx-auto px-6 py-8">
+
+  <!-- Header -->
+  <div class="mb-8">
+    <h1 class="text-3xl font-bold text-slate-800">量化策略对比分析工具</h1>
+    <p class="text-slate-500 mt-2">上传 CSV → 选择变量 → 选模型与策略 → 一键回归 → 完整统计与回测</p>
+  </div>
+
+  <!-- Step 1: Upload -->
+  <div class="card p-6 mb-6">
+    <div class="flex items-center gap-3 mb-4">
+      <span class="step-badge">1</span>
+      <h2 class="text-lg font-semibold">上传数据文件</h2>
+    </div>
+    <div id="uploadZone" class="upload-zone">
+      <div class="text-slate-400 text-5xl mb-3">📁</div>
+      <p class="text-slate-600 font-medium mb-1">点击或拖拽 CSV 文件到此处</p>
+      <p class="text-slate-400 text-sm">支持面板数据（含日期、标的ID、应变量、多个自变量）</p>
+      <input type="file" id="fileInput" accept=".csv" class="hidden">
+    </div>
+    <div id="fileInfo" class="mt-3 text-sm text-slate-500 hidden"></div>
+    <div class="mt-3 flex gap-2">
+      <button id="loadSampleBtn" class="btn-ghost text-sm">载入示例数据 (model_data.csv)</button>
+      <button id="clearDataBtn" class="btn-ghost text-sm hidden">清除数据</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Data Config -->
+  <div class="card p-6 mb-6" id="step2" style="display:none">
+    <div class="flex items-center gap-3 mb-4">
+      <span class="step-badge">2</span>
+      <h2 class="text-lg font-semibold">配置数据列</h2>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">日期列</label>
+        <select id="dateCol" class="select"></select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">标的 ID 列</label>
+        <select id="idCol" class="select"></select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">应变量 (Y)</label>
+        <select id="yCol" class="select"></select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">任务类型</label>
+        <select id="taskType" class="select">
+          <option value="auto">自动判断</option>
+          <option value="regression">回归 (连续值)</option>
+          <option value="classification">分类 (Y>0 为正)</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">训练/测试切分日期</label>
+        <select id="splitDate" class="select"></select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">极端值处理 (Winsorize 分位)</label>
+        <div class="flex gap-2 items-center">
+          <input type="number" id="winsorLow" class="input" value="0.01" step="0.005" min="0" max="0.1">
+          <span class="text-slate-400">~</span>
+          <input type="number" id="winsorHigh" class="input" value="0.99" step="0.005" min="0.9" max="1">
+        </div>
+      </div>
+    </div>
+    <div class="mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <label class="block text-sm font-medium text-slate-600">自变量 (X) — 点击选择/取消</label>
+        <div class="flex gap-2">
+          <button id="selectAllX" class="btn-ghost text-xs px-2 py-1">全选</button>
+          <button id="clearAllX" class="btn-ghost text-xs px-2 py-1">清空</button>
+        </div>
+      </div>
+      <div id="xVarList" class="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-56 scroll-y p-1"></div>
+    </div>
+    <details class="mb-2">
+      <summary class="text-sm text-slate-500 hover:text-slate-700">📊 数据预览（前 50 行）</summary>
+      <div class="mt-2 scroll-x max-h-80 border border-slate-200 rounded-lg">
+        <table id="previewTable" class="data-table"></table>
+      </div>
+    </details>
+  </div>
+
+  <!-- Step 3: Strategy Config -->
+  <div class="card p-6 mb-6" id="step3" style="display:none">
+    <div class="flex items-center gap-3 mb-4">
+      <span class="step-badge">3</span>
+      <h2 class="text-lg font-semibold">选择模型与策略</h2>
+    </div>
+    <div class="mb-5">
+      <label class="block text-sm font-medium text-slate-600 mb-2">机器学习模型（可多选）</label>
+      <div id="modelList" class="flex flex-wrap gap-2"></div>
+    </div>
+    <div class="mb-5">
+      <label class="block text-sm font-medium text-slate-600 mb-2">信号生成策略（可多选）</label>
+      <div id="strategyList" class="flex flex-wrap gap-2"></div>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">Top 分位 (做多)</label>
+        <input type="number" id="topQuantile" class="input" value="0.20" step="0.05" min="0.05" max="0.5">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">Bottom 分位 (做空)</label>
+        <input type="number" id="botQuantile" class="input" value="0.20" step="0.05" min="0.05" max="0.5">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">买入阈值 (分类)</label>
+        <input type="number" id="buyThreshold" class="input" value="0.55" step="0.05" min="0.5" max="0.95">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">卖出阈值 (分类)</label>
+        <input type="number" id="sellThreshold" class="input" value="0.45" step="0.05" min="0.05" max="0.5">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">无风险利率 (年化)</label>
+        <input type="number" id="rfRate" class="input" value="0.025" step="0.005" min="0" max="0.1">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">最大仓位</label>
+        <input type="number" id="maxPosition" class="input" value="0.8" step="0.05" min="0.1" max="1">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">随机森林树数</label>
+        <input type="number" id="nEstimators" class="input" value="15" step="5" min="5" max="200">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">最大深度</label>
+        <input type="number" id="maxDepth" class="input" value="6" step="1" min="2" max="15">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">最大训练样本数</label>
+        <input type="number" id="maxTrainSize" class="input" value="8000" step="1000" min="500" max="50000">
+        <p class="text-xs text-slate-400 mt-1">超过将随机降采样，避免卡顿</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 mt-5">
+      <button id="runBtn" class="btn-primary">🚀 一键执行回归与回测</button>
+      <span id="runStatus" class="text-sm text-slate-500"></span>
+    </div>
+    <div id="progressWrap" class="mt-3 hidden">
+      <div class="progress-bar"><div id="progressFill" class="progress-fill" style="width:0%"></div></div>
+      <div id="progressText" class="text-xs text-slate-500 mt-1"></div>
+    </div>
+  </div>
+
+  <!-- Step 4: Results -->
+  <div id="step4" style="display:none">
+
+    <!-- 无收益率提示横幅 -->
+    <div id="noReturnBanner" class="card p-4 mb-4" style="display:none; background:#fffbeb; border:1px solid #fcd34d;">
+      <div class="flex items-start gap-3">
+        <span class="text-2xl">⚠️</span>
+        <div class="text-sm text-amber-800">
+          <p class="font-semibold mb-1">当前数据 Y 列为分类标签（如 True/False），无收益率列。</p>
+          <p>模型训练、准确率/AUC/IC、特征重要性均正常显示；但<b>无法计算策略累计收益/夏普/最大回撤</b>（这些需要收益率）。</p>
+          <p>因此「回测结果」「图表」已改为展示<b>选股命中率</b>：每个测试期模型选中的股票中，实际 Y=1（上涨）的占比。命中率高于基准阳性率说明模型选股有效。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="card px-4 mb-4">
+      <div class="flex border-b border-slate-200">
+        <div class="tab-btn active" data-tab="overview">📋 总览</div>
+        <div class="tab-btn" data-tab="models">🤖 模型统计</div>
+        <div class="tab-btn" data-tab="backtest">📈 回测结果</div>
+        <div class="tab-btn" data-tab="charts">📊 图表</div>
+        <div class="tab-btn" data-tab="raw">📄 原始数据</div>
+      </div>
+    </div>
+
+    <!-- Overview Tab -->
+    <div id="tab-overview" class="tab-content">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div class="card p-5">
+          <div class="text-sm text-slate-500 mb-1">样本数</div>
+          <div id="ovSamples" class="text-2xl font-bold">-</div>
+          <div id="ovSamplesDetail" class="text-xs text-slate-400 mt-1"></div>
+        </div>
+        <div class="card p-5">
+          <div class="text-sm text-slate-500 mb-1">特征数</div>
+          <div id="ovFeatures" class="text-2xl font-bold">-</div>
+          <div id="ovFeaturesDetail" class="text-xs text-slate-400 mt-1"></div>
+        </div>
+        <div class="card p-5">
+          <div class="text-sm text-slate-500 mb-1">测试期</div>
+          <div id="ovTestPeriod" class="text-2xl font-bold">-</div>
+          <div id="ovTestDetail" class="text-xs text-slate-400 mt-1"></div>
+        </div>
+      </div>
+      <div class="card p-5 mb-4">
+        <h3 class="font-semibold mb-3">🏆 最佳策略（按夏普比率）</h3>
+        <div id="ovBestStrategy" class="text-slate-600 text-sm"></div>
+      </div>
+      <div class="card p-5">
+        <h3 class="font-semibold mb-3">🤖 最佳模型（按 IC）</h3>
+        <div id="ovBestModel" class="text-slate-600 text-sm"></div>
+      </div>
+    </div>
+
+    <!-- Models Tab -->
+    <div id="tab-models" class="tab-content hidden">
+      <div class="card p-5 mb-4">
+        <h3 class="font-semibold mb-3">模型统计指标对比</h3>
+        <div class="scroll-x">
+          <table id="modelStatsTable" class="metric-table"></table>
+        </div>
+      </div>
+      <div class="card p-5">
+        <h3 class="font-semibold mb-3">特征重要性（树模型）</h3>
+        <div id="featureImportanceWrap" class="text-sm text-slate-500">训练后显示</div>
+      </div>
+    </div>
+
+    <!-- Backtest Tab -->
+    <div id="tab-backtest" class="tab-content hidden">
+      <div class="card p-5 mb-4">
+        <h3 class="font-semibold mb-3">策略回测核心指标</h3>
+        <div class="scroll-x">
+          <table id="backtestTable" class="metric-table"></table>
+        </div>
+      </div>
+      <div class="card p-5">
+        <h3 class="font-semibold mb-3">各季度组合收益</h3>
+        <div class="scroll-x">
+          <table id="quarterlyTable" class="metric-table"></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Tab -->
+    <div id="tab-charts" class="tab-content hidden">
+      <div class="card p-5 mb-4">
+        <h3 class="font-semibold mb-3" id="titleEquity">📈 净值曲线对比</h3>
+        <canvas id="chartEquity" height="100"></canvas>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div class="card p-5">
+          <h3 class="font-semibold mb-3">🤖 模型 IC / R² 对比</h3>
+          <canvas id="chartModel" height="120"></canvas>
+        </div>
+        <div class="card p-5">
+          <h3 class="font-semibold mb-3" id="titleQuarterly">📊 季度收益分布</h3>
+          <canvas id="chartQuarterly" height="120"></canvas>
+        </div>
+      </div>
+      <div class="card p-5 mb-4">
+        <h3 class="font-semibold mb-3">🎯 特征重要性 Top 15</h3>
+        <canvas id="chartImportance" height="100"></canvas>
+      </div>
+      <div class="card p-5">
+        <h3 class="font-semibold mb-3" id="titleDrawdown">📉 回撤曲线</h3>
+        <canvas id="chartDrawdown" height="100"></canvas>
+      </div>
+    </div>
+
+    <!-- Raw Tab -->
+    <div id="tab-raw" class="tab-content hidden">
+      <div class="card p-5">
+        <h3 class="font-semibold mb-3">预测结果明细（测试集）</h3>
+        <div class="scroll-x max-h-[500px] border border-slate-200 rounded-lg">
+          <table id="rawTable" class="data-table"></table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="text-center text-xs text-slate-400 mt-8 pb-4">
+    量化策略对比分析工具 · 纯前端运行 · 数据不上传服务器 · 仅供教学研究使用
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script>
+/* ============================================================
+   矩阵与统计工具
+   ============================================================ */
+const M = {
+  transpose(A) { return A[0].map((_, j) => A.map(r => r[j])); },
+  matMul(A, B) {
+    const n = A.length, m = B[0].length, k = B.length;
+    const C = Array.from({length: n}, () => new Array(m).fill(0));
+    for (let i = 0; i < n; i++) for (let l = 0; l < k; l++) {
+      const a = A[i][l]; if (a === 0) continue;
+      for (let j = 0; j < m; j++) C[i][j] += a * B[l][j];
+    }
+    return C;
+  },
+  matVec(A, v) { return A.map(r => r.reduce((s, a, j) => s + a * v[j], 0)); },
+  // 高斯消元法求逆
+  inverse(A) {
+    const n = A.length;
+    const aug = A.map((r, i) => [...r, ...Array.from({length: n}, (_, j) => j === i ? 1 : 0)]);
+    for (let i = 0; i < n; i++) {
+      let piv = i;
+      for (let r = i + 1; r < n; r++) if (Math.abs(aug[r][i]) > Math.abs(aug[piv][i])) piv = r;
+      if (Math.abs(aug[piv][i]) < 1e-12) return null; // 奇异
+      [aug[i], aug[piv]] = [aug[piv], aug[i]];
+      const d = aug[i][i];
+      for (let j = 0; j < 2 * n; j++) aug[i][j] /= d;
+      for (let r = 0; r < n; r++) {
+        if (r === i) continue;
+        const f = aug[r][i];
+        for (let j = 0; j < 2 * n; j++) aug[r][j] -= f * aug[i][j];
+      }
+    }
+    return aug.map(r => r.slice(n));
+  },
+  mean(a) { return a.reduce((s, x) => s + x, 0) / a.length; },
+  std(a) { const m = M.mean(a); return Math.sqrt(a.reduce((s, x) => s + (x - m) ** 2, 0) / a.length); },
+  variance(a) { const m = M.mean(a); return a.reduce((s, x) => s + (x - m) ** 2, 0) / a.length; },
+  median(a) { const s = [...a].sort((x, y) => x - y); const n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; },
+  quantile(a, q) { const s = [...a].sort((x, y) => x - y); const idx = (s.length - 1) * q; const lo = Math.floor(idx), hi = Math.ceil(idx); return s[lo] + (s[hi] - s[lo]) * (idx - lo); },
+  spearmanRho(x, y) {
+    const rx = rank(x), ry = rank(y);
+    return pearson(rx, ry);
+  },
+  pearson(x, y) {
+    const mx = M.mean(x), my = M.mean(y);
+    let num = 0, dx = 0, dy = 0;
+    for (let i = 0; i < x.length; i++) { num += (x[i] - mx) * (y[i] - my); dx += (x[i] - mx) ** 2; dy += (y[i] - my) ** 2; }
+    return dx && dy ? num / Math.sqrt(dx * dy) : 0;
+  }
+};
+function rank(arr) {
+  const sorted = arr.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]);
+  const r = new Array(arr.length);
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1][0] === sorted[i][0]) j++;
+    const avg = (i + j) / 2 + 1;
+    for (let k = i; k <= j; k++) r[sorted[k][1]] = avg;
+    i = j + 1;
+  }
+  return r;
+}
+
+/* ============================================================
+   机器学习模型（纯 JS 实现）
+   ============================================================ */
+
+// 线性回归（正规方程 + L2 正则）
+class LinearRegression {
+  constructor(lambda = 0.01) { this.lambda = lambda; }
+  fit(X, y) {
+    const n = X.length, m = X[0].length;
+    // 加截距列
+    const Xb = X.map(r => [1, ...r]);
+    const Xt = M.transpose(Xb);
+    const XtX = M.matMul(Xt, Xb);
+    // L2 正则
+    for (let i = 0; i < XtX.length; i++) XtX[i][i] += this.lambda * n;
+    const XtXInv = M.inverse(XtX);
+    if (!XtXInv) { this.beta = new Array(m + 1).fill(0); return; }
+    this.beta = M.matVec(XtXInv, M.matVec(Xt, y));
+  }
+  predict(X) { return X.map(r => this.beta[0] + r.reduce((s, v, i) => s + v * this.beta[i + 1], 0)); }
+}
+
+// 逻辑回归（梯度下降）
+class LogisticRegression {
+  constructor(lr = 0.1, epochs = 200, lambda = 0.001) { this.lr = lr; this.epochs = epochs; this.lambda = lambda; }
+  fit(X, y) {
+    const n = X.length, m = X[0].length;
+    this.w = new Array(m).fill(0); this.b = 0;
+    for (let ep = 0; ep < this.epochs; ep++) {
+      const gradW = new Array(m).fill(0); let gradB = 0;
+      for (let i = 0; i < n; i++) {
+        const z = X[i].reduce((s, v, j) => s + v * this.w[j], 0) + this.b;
+        const p = 1 / (1 + Math.exp(-Math.max(-30, Math.min(30, z))));
+        const err = p - y[i];
+        for (let j = 0; j < m; j++) gradW[j] += err * X[i][j];
+        gradB += err;
+      }
+      for (let j = 0; j < m; j++) this.w[j] -= this.lr * (gradW[j] / n + this.lambda * this.w[j]);
+      this.b -= this.lr * (gradB / n);
+    }
+  }
+  predictProba(X) { return X.map(r => { const z = r.reduce((s, v, j) => s + v * this.w[j], 0) + this.b; return 1 / (1 + Math.exp(-Math.max(-30, Math.min(30, z)))); }); }
+}
+
+// 决策树（CART，支持回归和分类）
+class DecisionTree {
+  constructor(maxDepth = 6, minSamples = 20, task = 'regression', maxFeatures = null) {
+    this.maxDepth = maxDepth; this.minSamples = minSamples; this.task = task; this.maxFeatures = maxFeatures;
+  }
+  fit(X, y, featureNames = null) {
+    this.featureNames = featureNames;
+    this.nFeatures = X[0].length;
+    this.featureImportance = new Array(this.nFeatures).fill(0);
+    this.root = this._build(X, y, 0, X.length);
+    const total = this.featureImportance.reduce((s, v) => s + v, 0);
+    if (total > 0) this.featureImportance = this.featureImportance.map(v => v / total);
+  }
+  _impurity(y) {
+    if (this.task === 'classification') {
+      const p1 = y.reduce((s, v) => s + v, 0) / y.length;
+      return p1 * (1 - p1);
+    }
+    return M.variance(y);
+  }
+  _build(X, y, depth, nTotal) {
+    const node = {};
+    const imp = this._impurity(y);
+    if (depth >= this.maxDepth || y.length < this.minSamples * 2 || imp < 1e-8) {
+      node.value = this.task === 'classification' ? M.mean(y) : M.mean(y);
+      return node;
+    }
+    let best = { gain: 0 };
+    const featIdx = this.maxFeatures
+      ? this._sampleFeatures(this.nFeatures, this.maxFeatures)
+      : Array.from({length: this.nFeatures}, (_, i) => i);
+    for (const f of featIdx) {
+      const vals = [...new Set(X.map(r => r[f]))].sort((a, b) => a - b);
+      if (vals.length < 2) continue;
+      // 取分位候选阈值以加速
+      const candidates = vals.length > 20
+        ? [0.1, 0.25, 0.5, 0.75, 0.9].map(q => M.quantile(vals, q))
+        : vals.slice(0, -1);
+      for (const thr of candidates) {
+        const leftIdx = [], rightIdx = [];
+        for (let i = 0; i < X.length; i++) (X[i][f] <= thr ? leftIdx : rightIdx).push(i);
+        if (leftIdx.length < this.minSamples || rightIdx.length < this.minSamples) continue;
+        const yL = leftIdx.map(i => y[i]), yR = rightIdx.map(i => y[i]);
+        const wL = yL.length / y.length, wR = yR.length / y.length;
+        const childImp = wL * this._impurity(yL) + wR * this._impurity(yR);
+        const gain = imp - childImp;
+        if (gain > best.gain) best = { gain, f, thr, leftIdx, rightIdx };
+      }
+    }
+    if (!best.f) { node.value = M.mean(y); return node; }
+    this.featureImportance[best.f] += best.gain * (y.length / nTotal);
+    const Xl = best.leftIdx.map(i => X[i]), yl = best.leftIdx.map(i => y[i]);
+    const Xr = best.rightIdx.map(i => X[i]), yr = best.rightIdx.map(i => y[i]);
+    node.feature = best.f; node.threshold = best.thr;
+    node.left = this._build(Xl, yl, depth + 1, nTotal);
+    node.right = this._build(Xr, yr, depth + 1, nTotal);
+    return node;
+  }
+  _sampleFeatures(n, k) {
+    const idx = Array.from({length: n}, (_, i) => i);
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+    return idx.slice(0, k);
+  }
+  _predictOne(x) {
+    let node = this.root;
+    while (node.feature !== undefined) node = x[node.feature] <= node.threshold ? node.left : node.right;
+    return node.value;
+  }
+  predict(X) { return X.map(x => this._predictOne(x)); }
+}
+
+// 随机森林
+class RandomForest {
+  constructor(nEstimators = 30, maxDepth = 6, task = 'regression', maxFeatures = null, minSamples = 20) {
+    this.nEstimators = nEstimators; this.maxDepth = maxDepth; this.task = task;
+    this.maxFeatures = maxFeatures; this.minSamples = minSamples;
+  }
+  fit(X, y, featureNames = null) {
+    this.featureNames = featureNames;
+    this.nFeatures = X[0].length;
+    const mf = this.maxFeatures || Math.max(1, Math.floor(Math.sqrt(this.nFeatures)));
+    this.trees = [];
+    this.featureImportance = new Array(this.nFeatures).fill(0);
+    const n = X.length;
+    for (let t = 0; t < this.nEstimators; t++) {
+      const idx = Array.from({length: n}, () => Math.floor(Math.random() * n));
+      const Xb = idx.map(i => X[i]), yb = idx.map(i => y[i]);
+      const tree = new DecisionTree(this.maxDepth, this.minSamples, this.task, mf);
+      tree.fit(Xb, yb, featureNames);
+      this.trees.push(tree);
+      for (let f = 0; f < this.nFeatures; f++) this.featureImportance[f] += tree.featureImportance[f];
+    }
+    const total = this.featureImportance.reduce((s, v) => s + v, 0);
+    if (total > 0) this.featureImportance = this.featureImportance.map(v => v / total);
+  }
+  predict(X) {
+    const preds = this.trees.map(t => t.predict(X));
+    return X.map((_, i) => M.mean(preds.map(p => p[i])));
+  }
+  predictProba(X) { return this.predict(X); }
+}
+
+/* ============================================================
+   信号策略与回测
+   ============================================================ */
+const Strategies = {
+  // 回归任务：按预测值排序选 Top/Bot
+  topQuantile: (preds, returns, topQ, botQ) => {
+    const n = preds.length;
+    const idx = preds.map((p, i) => i).sort((a, b) => preds[b] - preds[a]);
+    const nTop = Math.max(1, Math.floor(n * topQ));
+    const nBot = Math.max(1, Math.floor(n * botQ));
+    const topIdx = new Set(idx.slice(0, nTop));
+    const botIdx = new Set(idx.slice(-nBot));
+    const weights = new Array(n).fill(0);
+    topIdx.forEach(i => weights[i] = 1 / nTop);
+    botIdx.forEach(i => weights[i] = -1 / nBot);
+    return weights;
+  },
+  longOnly: (preds, returns, topQ) => {
+    const n = preds.length;
+    const idx = preds.map((p, i) => i).sort((a, b) => preds[b] - preds[a]);
+    const nTop = Math.max(1, Math.floor(n * topQ));
+    const weights = new Array(n).fill(0);
+    for (let i = 0; i < nTop; i++) weights[idx[i]] = 1 / nTop;
+    return weights;
+  },
+  // 分类任务：按概率阈值
+  simpleThreshold: (probs, returns, buyTh) => {
+    const signals = probs.map(p => p > buyTh ? 1 : 0);
+    const sum = signals.reduce((s, v) => s + v, 0);
+    return sum === 0 ? new Array(probs.length).fill(0) : signals.map(s => s / sum);
+  },
+  dualThreshold: (probs, returns, buyTh, sellTh) => {
+    const signals = probs.map(p => p > buyTh ? 1 : (p < sellTh ? 0 : 0));
+    const sum = signals.reduce((s, v) => s + v, 0);
+    return sum === 0 ? new Array(probs.length).fill(0) : signals.map(s => s / sum);
+  },
+  probWeighted: (probs, returns, maxPos) => {
+    const weights = probs.map(p => Math.max(0, (p - 0.5) * 2 * maxPos));
+    const sum = weights.reduce((s, v) => s + v, 0);
+    return sum === 0 ? new Array(probs.length).fill(0) : weights.map(w => w / sum);
+  }
+};
+
+function calcMetrics(rets, rfAnnual = 0.025) {
+  const r = rets.filter(x => !isNaN(x));
+  const n = r.length;
+  if (n === 0) return { cum: 0, annRet: 0, annVol: 0, sharpe: 0, maxDD: 0, winRate: 0, avg: 0 };
+  const cum = r.reduce((s, x) => s * (1 + x), 1) - 1;
+  const annRet = (1 + cum) > 0 ? (1 + cum) ** (4 / n) - 1 : -1;
+  const annVol = M.std(r) * Math.sqrt(4);
+  const rfQ = (1 + rfAnnual) ** 0.25 - 1;
+  const sharpe = M.std(r) > 0 ? ((M.mean(r) - rfQ) * 4) / (M.std(r) * Math.sqrt(4)) : 0;
+  let equity = 1, peak = 1, maxDD = 0;
+  for (const x of r) { equity *= (1 + x); peak = Math.max(peak, equity); maxDD = Math.min(maxDD, (equity - peak) / peak); }
+  return { cum, annRet, annVol, sharpe, maxDD, winRate: r.filter(x => x > 0).length / n, avg: M.mean(r) };
+}
+
+// 无收益率（纯分类标签）时的命中率评估指标
+function calcHitMetrics(precisions, baseRates) {
+  const filled = precisions.map((v, i) => (v == null ? baseRates[i] : v));
+  const n = filled.length;
+  const mean = n > 0 ? M.mean(filled) : 0;
+  const std = n > 0 ? M.std(filled) : 0;
+  let validN = 0, above = 0, gtHalf = 0;
+  precisions.forEach((v, i) => {
+    if (v == null) return;
+    validN++;
+    if (v > baseRates[i]) above++;
+    if (v > 0.5) gtHalf++;
+  });
+  return {
+    precision: mean,
+    precisionStd: std,
+    aboveBaseRate: validN > 0 ? above / validN : 0,
+    validN,
+    // 兼容字段（用于排序/总览，语义=命中率）
+    cum: mean, annRet: mean, annVol: std, sharpe: mean, maxDD: 0,
+    winRate: validN > 0 ? gtHalf / validN : 0, avg: mean
+  };
+}
+
+/* ============================================================
+   全局状态
+   ============================================================ */
+const state = {
+  rawData: null,
+  columns: [],
+  dateCol: null, idCol: null, yCol: null,
+  xCols: [],
+  taskType: 'auto',
+  splitDate: null,
+  models: new Set(['linear', 'randomforest']),
+  strategies: new Set(['top_quantile', 'long_only']),
+  trainData: null, testData: null,
+  modelResults: {},
+  strategyResults: {},
+  charts: {}
+};
+
+const MODEL_DEFS = {
+  linear: { name: '线性回归', type: 'both', class: LinearRegression },
+  logistic: { name: '逻辑回归', type: 'classification', class: LogisticRegression },
+  decisiontree: { name: '决策树', type: 'both', class: DecisionTree },
+  randomforest: { name: '随机森林', type: 'both', class: RandomForest }
+};
+
+const STRATEGY_DEFS = {
+  top_quantile: { name: 'Top 分位多空', task: 'regression' },
+  long_only: { name: '做多 Top 分位', task: 'regression' },
+  simple_threshold: { name: '简单阈值', task: 'classification' },
+  dual_threshold: { name: '双阈值', task: 'classification' },
+  prob_weighted: { name: '概率加权仓位', task: 'classification' }
+};
+
+/* ============================================================
+   UI 渲染
+   ============================================================ */
+function toast(msg, type = 'info') {
+  const div = document.createElement('div');
+  div.className = `toast ${type}`;
+  div.textContent = msg;
+  document.getElementById('toastContainer').appendChild(div);
+  setTimeout(() => div.remove(), 3000);
+}
+
+function renderModelList() {
+  const wrap = document.getElementById('modelList');
+  wrap.innerHTML = '';
+  Object.entries(MODEL_DEFS).forEach(([k, v]) => {
+    const chip = document.createElement('div');
+    chip.className = `chip model ${state.models.has(k) ? 'active' : ''}`;
+    chip.textContent = v.name;
+    chip.onclick = () => {
+      if (state.models.has(k)) state.models.delete(k); else state.models.add(k);
+      renderModelList();
+    };
+    wrap.appendChild(chip);
+  });
+}
+
+function renderStrategyList(taskType) {
+  const wrap = document.getElementById('strategyList');
+  wrap.innerHTML = '';
+  Object.entries(STRATEGY_DEFS).forEach(([k, v]) => {
+    if (taskType === 'regression' && v.task === 'classification') return;
+    if (taskType === 'classification' && v.task === 'regression') return;
+    const chip = document.createElement('div');
+    chip.className = `chip strategy ${state.strategies.has(k) ? 'active' : ''}`;
+    chip.textContent = v.name;
+    chip.onclick = () => {
+      if (state.strategies.has(k)) state.strategies.delete(k); else state.strategies.add(k);
+      renderStrategyList(taskType);
+    };
+    wrap.appendChild(chip);
+  });
+}
+
+function populateColumnSelects() {
+  const cols = state.columns;
+  ['dateCol', 'idCol', 'yCol'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '';
+    cols.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
+  });
+  // 默认值
+  const dateGuess = cols.find(c => /date|日期|时间/i.test(c));
+  const idGuess = cols.find(c => /code|代码|标的|id|symbol/i.test(c));
+  const yGuess = cols.find(c => /ret|收益|return|y/i.test(c));
+  if (dateGuess) document.getElementById('dateCol').value = dateGuess;
+  if (idGuess) document.getElementById('idCol').value = idGuess;
+  if (yGuess) document.getElementById('yCol').value = yGuess;
+  renderXVarList();
+  updateSplitDates();
+}
+
+function renderXVarList() {
+  const wrap = document.getElementById('xVarList');
+  wrap.innerHTML = '';
+  const dateCol = document.getElementById('dateCol').value;
+  const idCol = document.getElementById('idCol').value;
+  const yCol = document.getElementById('yCol').value;
+  state.xCols = [];
+  state.columns.forEach(c => {
+    if (c === dateCol || c === idCol || c === yCol) return;
+    const item = document.createElement('div');
+    item.className = 'var-item selected';
+    item.innerHTML = `<span>${c}</span><span class="text-slate-400">✓</span>`;
+    state.xCols.push(c);
+    item.onclick = () => {
+      const idx = state.xCols.indexOf(c);
+      if (idx >= 0) { state.xCols.splice(idx, 1); item.classList.remove('selected'); item.querySelector('span:last-child').textContent = ''; }
+      else { state.xCols.push(c); item.classList.add('selected'); item.querySelector('span:last-child').textContent = '✓'; }
+    };
+    wrap.appendChild(item);
+  });
+}
+
+// 日期标准化：把 2020/3/31 或 2020-3-31 统一为可字符串比较的 2020-03-31
+function normalizeDate(s) {
+  if (s == null) return '';
+  const str = String(s).trim();
+  // 尝试 YYYY/M/D 或 YYYY-MM-DD
+  const m = str.match(/^(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  return str;
+}
+
+function updateSplitDates() {
+  if (!state.rawData) return;
+  const dateCol = document.getElementById('dateCol').value;
+  // 标准化日期后再排序，避免 2020/3/31 > 2020/12/31 的字符串排序错误
+  const dates = [...new Set(state.rawData.map(r => normalizeDate(r[dateCol])))].sort();
+  const sel = document.getElementById('splitDate');
+  sel.innerHTML = '';
+  dates.forEach(d => { const o = document.createElement('option'); o.value = d; o.textContent = d; sel.appendChild(o); });
+  // 默认 60% 切分
+  const splitIdx = Math.floor(dates.length * 0.6);
+  if (dates[splitIdx]) sel.value = dates[splitIdx];
+}
+
+function renderPreview() {
+  const tbl = document.getElementById('previewTable');
+  const cols = state.columns;
+  let html = '<thead><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+  state.rawData.slice(0, 50).forEach(row => {
+    html += '<tr>' + cols.map(c => `<td>${row[c] ?? ''}</td>`).join('') + '</tr>';
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
+/* ============================================================
+   数据处理
+   ============================================================ */
+function processData() {
+  const dateCol = document.getElementById('dateCol').value;
+  const idCol = document.getElementById('idCol').value;
+  const yCol = document.getElementById('yCol').value;
+  const splitDate = document.getElementById('splitDate').value;
+  const taskType = document.getElementById('taskType').value;
+  const winsorLow = parseFloat(document.getElementById('winsorLow').value);
+  const winsorHigh = parseFloat(document.getElementById('winsorHigh').value);
+  const xCols = state.xCols.slice();
+
+  if (!dateCol || !yCol || xCols.length === 0) {
+    toast('请配置日期列、应变量和至少一个自变量', 'error');
+    return null;
+  }
+
+  // ---- Y 值健壮解析：支持 True/False / 是/否 / 0/1 / 数值 ----
+  const BOOL_TRUE = new Set(['true', '1', '是', 'yes', 'y', '涨', 'up', '阳']);
+  const BOOL_FALSE = new Set(['false', '0', '否', 'no', 'n', '跌', 'down', '阴']);
+  function parseY(v) {
+    if (v === null || v === undefined) return NaN;
+    const s = String(v).trim().toLowerCase();
+    if (BOOL_TRUE.has(s)) return 1;
+    if (BOOL_FALSE.has(s)) return 0;
+    const num = parseFloat(s);
+    return num;
+  }
+  const parsedY = state.rawData.map(r => parseY(r[yCol]));
+  const validYCount = parsedY.filter(v => !isNaN(v)).length;
+  if (validYCount === 0) {
+    toast(`应变量 “${yCol}” 无法解析为数值（支持 True/False、是/否、0/1、数字）。请检查列选择。`, 'error');
+    return null;
+  }
+
+  // 判断是“收益率”还是“纯分类标签”：所有有效 Y 恒为 0/1 且列名不含收益关键词 → 纯标签
+  const yUnique = [...new Set(parsedY.filter(v => !isNaN(v)))];
+  const isBinaryLabel = yUnique.every(v => v === 0 || v === 1);
+  const yNameLooksReturn = /ret|收益|return|涨跌|pct|chg|rate|yld/i.test(yCol);
+  let hasReturn = !(isBinaryLabel && !yNameLooksReturn);
+
+  // 确定任务类型
+  let task = taskType;
+  if (task === 'auto') {
+    task = isBinaryLabel ? 'classification' : (yUnique.length <= 5 ? 'classification' : 'regression');
+  }
+  if (!hasReturn) task = 'classification';   // 无收益率时强制分类
+
+  // 数值化 + 日期标准化（统一为 YYYY-MM-DD 以便正确排序/切分）
+  let data = state.rawData.map((r, i) => {
+    const x = xCols.map(c => parseFloat(r[c]));
+    const yv = parsedY[i];
+    return { date: normalizeDate(r[dateCol]), id: r[idCol], x, yRaw: yv, y: task === 'classification' ? (yv > 0 ? 1 : 0) : yv };
+  }).filter(d => d.x.every(v => !isNaN(v)) && !isNaN(d.yRaw));
+
+  if (data.length === 0) {
+    toast('有效数据为空，请检查自变量列是否均为数值、Y 列是否选择正确。', 'error');
+    return null;
+  }
+
+  // Winsorize X
+  const nFeat = xCols.length;
+  for (let f = 0; f < nFeat; f++) {
+    const vals = data.map(d => d.x[f]).sort((a, b) => a - b);
+    const lo = M.quantile(vals, winsorLow), hi = M.quantile(vals, winsorHigh);
+    data.forEach(d => d.x[f] = Math.max(lo, Math.min(hi, d.x[f])));
+  }
+
+  // Winsorize Y（仅回归且有收益率时）
+  if (task === 'regression' && hasReturn) {
+    const yVals = data.map(d => d.y).sort((a, b) => a - b);
+    const lo = M.quantile(yVals, winsorLow), hi = M.quantile(yVals, winsorHigh);
+    data.forEach(d => d.y = Math.max(lo, Math.min(hi, d.y)));
+  }
+
+  // 时间切分
+  const trainData = data.filter(d => d.date < splitDate);
+  const testData = data.filter(d => d.date >= splitDate);
+
+  if (trainData.length === 0 || testData.length === 0) {
+    toast(`切分后训练集 ${trainData.length} 行 / 测试集 ${testData.length} 行，样本不足。请调整切分日期。`, 'error');
+    return null;
+  }
+
+  // 大数据降采样：训练集超过阈值时随机采样，避免纯 JS 模型训练卡死
+  const maxTrainSize = parseInt(document.getElementById('maxTrainSize').value) || 8000;
+  let trainDataFinal = trainData;
+  let downsampled = false;
+  if (trainData.length > maxTrainSize) {
+    // Fisher-Yates 部分洗牌取前 maxTrainSize 个
+    const idx = Array.from({length: trainData.length}, (_, i) => i);
+    for (let i = idx.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [idx[i], idx[j]] = [idx[j], idx[i]];
+    }
+    trainDataFinal = idx.slice(0, maxTrainSize).map(i => trainData[i]);
+    downsampled = true;
+    toast(`训练集 ${trainData.length} 行 → 降采样至 ${maxTrainSize} 行（加速训练）`, 'info');
+  }
+
+  // 标准化（基于训练集）
+  const means = new Array(nFeat).fill(0), stds = new Array(nFeat).fill(0);
+  trainDataFinal.forEach(d => { for (let f = 0; f < nFeat; f++) means[f] += d.x[f]; });
+  for (let f = 0; f < nFeat; f++) means[f] /= trainDataFinal.length;
+  trainDataFinal.forEach(d => { for (let f = 0; f < nFeat; f++) stds[f] += (d.x[f] - means[f]) ** 2; });
+  for (let f = 0; f < nFeat; f++) stds[f] = Math.sqrt(stds[f] / trainDataFinal.length) || 1;
+  [...trainDataFinal, ...testData].forEach(d => { for (let f = 0; f < nFeat; f++) d.x[f] = (d.x[f] - means[f]) / stds[f]; });
+
+  return { task, xCols, dateCol, yCol, trainData: trainDataFinal, trainDataOrigSize: trainData.length, testData, splitDate, hasReturn, isBinaryLabel, downsampled };
+}
+
+/* ============================================================
+   训练与回测
+   ============================================================ */
+async function runAnalysis() {
+  const cfg = processData();
+  if (!cfg) return;
+  const { task, xCols, trainData, testData } = cfg;
+
+  const rfRate = parseFloat(document.getElementById('rfRate').value);
+  const topQ = parseFloat(document.getElementById('topQuantile').value);
+  const botQ = parseFloat(document.getElementById('botQuantile').value);
+  const buyTh = parseFloat(document.getElementById('buyThreshold').value);
+  const sellTh = parseFloat(document.getElementById('sellThreshold').value);
+  const nEst = parseInt(document.getElementById('nEstimators').value);
+  const maxDepth = parseInt(document.getElementById('maxDepth').value);
+
+  document.getElementById('progressWrap').classList.remove('hidden');
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('runStatus').textContent = `训练中（${trainData.length} 样本 × ${modelKeys.length} 模型，请稍候 10~30 秒）...`;
+
+  const X_train = trainData.map(d => d.x);
+  const y_train = trainData.map(d => d.y);
+  const X_test = testData.map(d => d.x);
+  const y_test_real = testData.map(d => d.yRaw);
+  const y_test_label = testData.map(d => d.y);
+
+  state.modelResults = {};
+  const modelKeys = [...state.models];
+  for (let i = 0; i < modelKeys.length; i++) {
+    const key = modelKeys[i];
+    const def = MODEL_DEFS[key];
+    updateProgress((i / modelKeys.length) * 100, `训练 ${def.name}...`);
+    await new Promise(r => setTimeout(r, 10));
+
+    let model;
+    if (key === 'linear') model = task === 'classification' ? new LogisticRegression(0.1, 150) : new LinearRegression(0.01);
+    else if (key === 'logistic') model = new LogisticRegression(0.1, 150);
+    else if (key === 'decisiontree') model = new DecisionTree(maxDepth, 20, task);
+    else if (key === 'randomforest') model = new RandomForest(nEst, maxDepth, task);
+
+    try {
+      model.fit(X_train, y_train, xCols);
+    } catch (e) {
+      toast(`${def.name} 训练失败: ${e.message}`, 'error');
+      continue;
+    }
+
+    let preds;
+    if (task === 'classification') preds = model.predictProba ? model.predictProba(X_test) : model.predict(X_test);
+    else preds = model.predict(X_test);
+
+    const predsTrain = task === 'classification'
+      ? (model.predictProba ? model.predictProba(X_train) : model.predict(X_train))
+      : model.predict(X_train);
+
+    // 指标
+    const metrics = {};
+    if (task === 'regression') {
+      const mse = M.mean(preds.map((p, i) => (p - y_test_real[i]) ** 2));
+      const yMean = M.mean(y_test_real);
+      const ssTot = y_test_real.reduce((s, y) => s + (y - yMean) ** 2, 0);
+      const ssRes = preds.reduce((s, p, i) => s + (p - y_test_real[i]) ** 2, 0);
+      metrics.r2_test = ssTot > 0 ? 1 - ssRes / ssTot : 0;
+      const ssResTr = predsTrain.reduce((s, p, i) => s + (p - y_train[i]) ** 2, 0);
+      const yMeanTr = M.mean(y_train);
+      const ssTotTr = y_train.reduce((s, y) => s + (y - yMeanTr) ** 2, 0);
+      metrics.r2_train = ssTotTr > 0 ? 1 - ssResTr / ssTotTr : 0;
+      metrics.rmse = Math.sqrt(mse);
+      metrics.ic = M.spearmanRho(preds, y_test_real);
+      metrics.ic_train = M.spearmanRho(predsTrain, y_train);
+    } else {
+      const predLabel = preds.map(p => p >= 0.5 ? 1 : 0);
+      metrics.accuracy = predLabel.filter((p, i) => p === y_test_label[i]).length / y_test_label.length;
+      // AUC
+      metrics.auc = computeAUC(preds, y_test_label);
+      metrics.ic = M.spearmanRho(preds, y_test_label);
+      metrics.ic_train = M.spearmanRho(predsTrain, y_train);
+    }
+    metrics.featureImportance = model.featureImportance || null;
+    state.modelResults[key] = { name: def.name, preds, metrics, model };
+  }
+
+  // 回测
+  updateProgress(80, '计算策略回测...');
+  await new Promise(r => setTimeout(r, 10));
+
+  // 按日期分组
+  const testDates = [...new Set(testData.map(d => d.date))].sort();
+  state.strategyResults = {};
+  state.noReturn = !cfg.hasReturn;
+  // 无收益率时，若用户只选了回归策略，自动补一个分类策略，避免回测为空
+  if (state.noReturn) {
+    const hasCls = [...state.strategies].some(sk => STRATEGY_DEFS[sk].task === 'classification');
+    if (!hasCls) {
+      state.strategies.add('simple_threshold');
+      state.strategies.add('dual_threshold');
+      toast('当前为分类标签数据，已自动选用「简单阈值 / 双阈值」分类策略。', 'info');
+    }
+  }
+  // 为每个测试样本建立全局索引，避免 indexOf 在重复行上出错
+  testData.forEach((d, i) => { d._gi = i; });
+  const maxPos = parseFloat(document.getElementById('maxPosition').value);
+
+  if (cfg.hasReturn) {
+    // ===== 有收益率：P&L 回测 =====
+    const benchRets = testDates.map(d => {
+      const sub = testData.filter(x => x.date === d);
+      return M.mean(sub.map(x => x.yRaw));
+    });
+    state.strategyResults['基准(等权)'] = { rets: benchRets, metrics: calcMetrics(benchRets, rfRate), dates: testDates, kind: 'pnl' };
+
+    const stratKeys = [...state.strategies];
+    for (const [modelKey, mr] of Object.entries(state.modelResults)) {
+      for (const sk of stratKeys) {
+        const sdef = STRATEGY_DEFS[sk];
+        if (task === 'regression' && sdef.task === 'classification') continue;
+        if (task === 'classification' && sdef.task === 'regression') continue;
+        const rets = testDates.map(d => {
+          const sub = testData.filter(x => x.date === d);
+          const preds = sub.map(x => mr.preds[x._gi]);
+          const returns = sub.map(x => x.yRaw);
+          let weights;
+          if (sk === 'top_quantile') weights = Strategies.topQuantile(preds, returns, topQ, botQ);
+          else if (sk === 'long_only') weights = Strategies.longOnly(preds, returns, topQ);
+          else if (sk === 'simple_threshold') weights = Strategies.simpleThreshold(preds, returns, buyTh);
+          else if (sk === 'dual_threshold') weights = Strategies.dualThreshold(preds, returns, buyTh, sellTh);
+          else if (sk === 'prob_weighted') weights = Strategies.probWeighted(preds, returns, maxPos);
+          return weights.reduce((s, w, i) => s + w * returns[i], 0);
+        });
+        const sname = `${mr.name} / ${sdef.name}`;
+        state.strategyResults[sname] = { rets, metrics: calcMetrics(rets, rfRate), dates: testDates, kind: 'pnl' };
+      }
+    }
+  } else {
+    // ===== 无收益率（纯分类标签）：选股命中率评估 =====
+    // 基准 = 各期全市场阳性率（Y=1 占比）
+    const baseRates = testDates.map(d => {
+      const sub = testData.filter(x => x.date === d);
+      return M.mean(sub.map(x => x.y));
+    });
+    state.strategyResults['基准(阳性率)'] = { rets: baseRates, metrics: calcHitMetrics(baseRates, baseRates), dates: testDates, kind: 'precision' };
+
+    const stratKeys = [...state.strategies];
+    for (const [modelKey, mr] of Object.entries(state.modelResults)) {
+      for (const sk of stratKeys) {
+        const sdef = STRATEGY_DEFS[sk];
+        if (sdef.task === 'regression') continue;   // 无收益率时只保留分类策略
+        const precisions = testDates.map(d => {
+          const sub = testData.filter(x => x.date === d);
+          const preds = sub.map(x => mr.preds[x._gi]);
+          const labels = sub.map(x => x.y);
+          let weights;
+          if (sk === 'simple_threshold') weights = Strategies.simpleThreshold(preds, labels, buyTh);
+          else if (sk === 'dual_threshold') weights = Strategies.dualThreshold(preds, labels, buyTh, sellTh);
+          else if (sk === 'prob_weighted') weights = Strategies.probWeighted(preds, labels, maxPos);
+          else weights = Strategies.simpleThreshold(preds, labels, buyTh);
+          const sel = weights.reduce((s, w) => s + w, 0);     // 权重和 = 选股比例
+          if (sel === 0) return null;                          // 该期未选股
+          const hit = weights.reduce((s, w, i) => s + w * labels[i], 0);
+          return hit / sel;                                     // 加权命中率
+        });
+        const sname = `${mr.name} / ${sdef.name}`;
+        state.strategyResults[sname] = { rets: precisions, metrics: calcHitMetrics(precisions, baseRates), dates: testDates, kind: 'precision' };
+      }
+    }
+  }
+
+  updateProgress(100, '完成');
+  setTimeout(() => document.getElementById('progressWrap').classList.add('hidden'), 500);
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('runStatus').textContent = '';
+
+  renderResults(cfg);
+}
+
+function computeAUC(probs, labels) {
+  const n1 = labels.filter(y => y === 1).length;
+  const n0 = labels.length - n1;
+  if (n1 === 0 || n0 === 0) return 0.5;
+  const sorted = probs.map((p, i) => [p, labels[i]]).sort((a, b) => b[0] - a[0]);
+  let tp = 0, fp = 0, auc = 0, prevFpr = 0;
+  for (const [p, y] of sorted) {
+    if (y === 1) tp++; else fp++;
+    const tpr = tp / n1, fpr = fp / n0;
+    auc += (fpr - prevFpr) * (tpr + (tp - 1) / n1) / 2;
+    prevFpr = fpr;
+  }
+  return auc;
+}
+
+function updateProgress(pct, text) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = text;
+}
+
+/* ============================================================
+   结果渲染
+   ============================================================ */
+function fmt(v, digits = 4, pct = false) {
+  if (v === null || v === undefined || isNaN(v)) return '-';
+  if (pct) return (v * 100).toFixed(2) + '%';
+  return Number(v).toFixed(digits);
+}
+function fmtColor(v, digits = 4) {
+  if (v === null || v === undefined || isNaN(v)) return '-';
+  const cls = v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
+  return `<span class="${cls}">${Number(v).toFixed(digits)}</span>`;
+}
+
+function renderResults(cfg) {
+  document.getElementById('step4').style.display = '';
+  // Overview
+  document.getElementById('ovSamples').textContent = (cfg.trainData.length + cfg.testData.length).toLocaleString();
+  document.getElementById('ovSamplesDetail').textContent = cfg.downsampled
+    ? `训练 ${cfg.trainData.length} (降采样自 ${cfg.trainDataOrigSize}) / 测试 ${cfg.testData.length}`
+    : `训练 ${cfg.trainData.length} / 测试 ${cfg.testData.length}`;
+  document.getElementById('ovFeatures').textContent = cfg.xCols.length;
+  document.getElementById('ovFeaturesDetail').textContent = cfg.xCols.slice(0, 5).join(', ') + (cfg.xCols.length > 5 ? '...' : '');
+  const testDates = [...new Set(cfg.testData.map(d => d.date))].sort();
+  document.getElementById('ovTestPeriod').textContent = `${testDates[0]} ~ ${testDates[testDates.length - 1]}`;
+  document.getElementById('ovTestDetail').textContent = `${testDates.length} 个时期`;
+
+  // 无收益率提示横幅
+  const banner = document.getElementById('noReturnBanner');
+  if (banner) banner.style.display = cfg.hasReturn ? 'none' : '';
+
+  // 最佳策略
+  const bestStrat = Object.entries(state.strategyResults)
+    .filter(([k]) => !k.startsWith('基准'))
+    .sort((a, b) => b[1].metrics.sharpe - a[1].metrics.sharpe)[0];
+  if (bestStrat) {
+    const m = bestStrat[1].metrics;
+    if (cfg.hasReturn) {
+      document.getElementById('ovBestStrategy').innerHTML = `
+      <div class="text-xl font-bold text-slate-800 mb-2">${bestStrat[0]}</div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <div><span class="text-slate-400">累计收益:</span> ${fmtColor(m.cum, 4)}</div>
+        <div><span class="text-slate-400">年化收益:</span> ${fmtColor(m.annRet, 4)}</div>
+        <div><span class="text-slate-400">夏普比率:</span> ${fmt(m.sharpe, 3)}</div>
+        <div><span class="text-slate-400">最大回撤:</span> ${fmt(m.maxDD, 4)}</div>
+        <div><span class="text-slate-400">年化波动:</span> ${fmt(m.annVol, 4)}</div>
+        <div><span class="text-slate-400">季度胜率:</span> ${fmt(m.winRate, 2, true)}</div>
+      </div>`;
+    } else {
+      document.getElementById('ovBestStrategy').innerHTML = `
+      <div class="text-xl font-bold text-slate-800 mb-2">${bestStrat[0]}</div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <div><span class="text-slate-400">平均命中率:</span> <span class="pos">${fmt(m.precision, 4, true)}</span></div>
+        <div><span class="text-slate-400">命中率标准差:</span> ${fmt(m.precisionStd, 4)}</div>
+        <div><span class="text-slate-400">跑赢基准期数:</span> ${fmt(m.aboveBaseRate, 2, true)}</div>
+        <div><span class="text-slate-400">有效选股期数:</span> ${m.validN}</div>
+      </div>`;
+    }
+  }
+  // 最佳模型
+  const bestModel = Object.values(state.modelResults).sort((a, b) => b.metrics.ic - a.metrics.ic)[0];
+  if (bestModel) {
+    document.getElementById('ovBestModel').innerHTML = `
+      <div class="text-xl font-bold text-slate-800 mb-2">${bestModel.name}</div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        ${cfg.task === 'regression'
+          ? `<div><span class="text-slate-400">R²(测试):</span> ${fmt(bestModel.metrics.r2_test, 4)}</div>
+             <div><span class="text-slate-400">RMSE:</span> ${fmt(bestModel.metrics.rmse, 4)}</div>`
+          : `<div><span class="text-slate-400">准确率:</span> ${fmt(bestModel.metrics.accuracy, 4)}</div>
+             <div><span class="text-slate-400">AUC:</span> ${fmt(bestModel.metrics.auc, 4)}</div>`}
+        <div><span class="text-slate-400">IC(测试):</span> ${fmt(bestModel.metrics.ic, 4)}</div>
+        <div><span class="text-slate-400">IC(训练):</span> ${fmt(bestModel.metrics.ic_train, 4)}</div>
+      </div>`;
+  }
+
+  // 模型统计表
+  renderModelStatsTable(cfg.task);
+  // 回测表
+  renderBacktestTable();
+  // 季度收益表
+  renderQuarterlyTable();
+  // 特征重要性
+  renderFeatureImportance(cfg.xCols);
+  // 图表
+  renderCharts(cfg);
+  // 原始数据
+  renderRawTable(cfg);
+
+  toast('分析完成！', 'success');
+}
+
+function renderModelStatsTable(task) {
+  const tbl = document.getElementById('modelStatsTable');
+  let cols = ['模型'];
+  if (task === 'regression') cols = cols.concat(['R²(训练)', 'R²(测试)', 'RMSE', 'IC(训练)', 'IC(测试)']);
+  else cols = cols.concat(['准确率', 'AUC', 'IC(训练)', 'IC(测试)']);
+  let html = '<thead><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+  Object.values(state.modelResults).forEach(mr => {
+    const m = mr.metrics;
+    let row = `<td>${mr.name}</td>`;
+    if (task === 'regression') row += `<td>${fmt(m.r2_train)}</td><td>${fmt(m.r2_test)}</td><td>${fmt(m.rmse)}</td><td>${fmt(m.ic_train)}</td><td>${fmt(m.ic)}</td>`;
+    else row += `<td>${fmt(m.accuracy)}</td><td>${fmt(m.auc)}</td><td>${fmt(m.ic_train)}</td><td>${fmt(m.ic)}</td>`;
+    html += `<tr>${row}</tr>`;
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
+function renderBacktestTable() {
+  const tbl = document.getElementById('backtestTable');
+  const noReturn = state.noReturn;
+  let cols, html;
+  if (noReturn) {
+    cols = ['策略', '平均命中率', '命中率标准差', '跑赢基准期数占比', '有效选股期数'];
+    html = '<thead><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+    Object.entries(state.strategyResults).forEach(([name, r]) => {
+      const m = r.metrics;
+      const validN = r.rets.filter(v => v != null).length;
+      html += `<tr><td>${name}</td><td><span class="pos">${fmt(m.precision, 4, true)}</span></td><td>${fmt(m.precisionStd)}</td><td>${fmt(m.aboveBaseRate, 2, true)}</td><td>${validN} / ${r.rets.length}</td></tr>`;
+    });
+  } else {
+    cols = ['策略', '累计收益', '年化收益', '年化波动', '夏普比率', '最大回撤', '季度胜率', '平均季度收益'];
+    html = '<thead><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+    Object.entries(state.strategyResults).forEach(([name, r]) => {
+      const m = r.metrics;
+      html += `<tr><td>${name}</td><td>${fmtColor(m.cum)}</td><td>${fmtColor(m.annRet)}</td><td>${fmt(m.annVol)}</td><td>${fmt(m.sharpe, 3)}</td><td>${fmt(m.maxDD)}</td><td>${fmt(m.winRate, 2, true)}</td><td>${fmtColor(m.avg)}</td></tr>`;
+    });
+  }
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
+function renderQuarterlyTable() {
+  const tbl = document.getElementById('quarterlyTable');
+  const firstKey = Object.keys(state.strategyResults)[0];
+  const dates = state.strategyResults[firstKey].dates;
+  const noReturn = state.noReturn;
+  let html = '<thead><tr><th>策略</th>' + dates.map(d => `<th>${d}</th>`).join('') + '</tr></thead><tbody>';
+  Object.entries(state.strategyResults).forEach(([name, r]) => {
+    html += `<tr><td>${name}</td>` + r.rets.map(v => {
+      if (v == null) return '<td class="text-slate-300">—</td>';
+      return noReturn ? `<td>${fmt(v, 2, true)}</td>` : `<td>${fmtColor(v)}</td>`;
+    }).join('') + '</tr>';
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
+function renderFeatureImportance(xCols) {
+  const wrap = document.getElementById('featureImportanceWrap');
+  const rfResult = Object.values(state.modelResults).find(m => m.metrics.featureImportance && m.name.includes('森林'));
+  if (!rfResult) { wrap.innerHTML = '<span class="text-slate-400">未训练树模型</span>'; return; }
+  const imp = rfResult.metrics.featureImportance;
+  const pairs = xCols.map((c, i) => [c, imp[i] || 0]).sort((a, b) => b[1] - a[1]);
+  wrap.innerHTML = '<div class="space-y-1">' + pairs.map(([c, v]) => `
+    <div class="flex items-center gap-2">
+      <div class="w-32 text-xs text-slate-600 truncate">${c}</div>
+      <div class="flex-1 bg-slate-100 rounded h-4 overflow-hidden"><div class="bg-blue-500 h-full" style="width:${v * 100 / pairs[0][1]}%"></div></div>
+      <div class="w-12 text-xs text-right">${(v * 100).toFixed(1)}%</div>
+    </div>`).join('') + '</div>';
+}
+
+function renderCharts(cfg) {
+  // 销毁旧图表
+  Object.values(state.charts).forEach(c => c && c.destroy());
+  state.charts = {};
+
+  const colors = ['#888888', '#2563eb', '#16a34a', '#dc2626', '#d97706', '#9333ea', '#0891b2', '#be185d'];
+  const testDates = state.strategyResults[Object.keys(state.strategyResults)[0]].dates;
+  const labels = testDates;
+  const noReturn = state.noReturn;
+
+  // 动态标题
+  document.getElementById('titleEquity').textContent = noReturn ? '🎯 选股命中率曲线' : '📈 净值曲线对比';
+  document.getElementById('titleQuarterly').textContent = noReturn ? '📊 各期命中率分布' : '📊 季度收益分布';
+  document.getElementById('titleDrawdown').textContent = noReturn ? '📉 平均命中率 vs 基准阳性率' : '📉 回撤曲线';
+
+  // 1. 净值 / 命中率曲线
+  let equityDatasets;
+  if (noReturn) {
+    equityDatasets = Object.entries(state.strategyResults).map(([name, r], i) => {
+      const data = r.rets.map(v => v == null ? null : v);
+      return { label: name, data, borderColor: colors[i % colors.length], tension: 0.2, pointRadius: 4, spanGaps: true };
+    });
+  } else {
+    equityDatasets = Object.entries(state.strategyResults).map(([name, r], i) => {
+      let eq = 1;
+      const cum = r.rets.map(v => eq *= (1 + v));
+      return { label: name, data: cum, borderColor: colors[i % colors.length], tension: 0.2, pointRadius: 4 };
+    });
+  }
+  state.charts.equity = new Chart(document.getElementById('chartEquity'), {
+    type: 'line',
+    data: { labels, datasets: equityDatasets },
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { title: { display: true, text: noReturn ? '命中率' : '净值' }, ticks: { callback: v => noReturn ? (v * 100).toFixed(0) + '%' : v.toFixed(2) } } } }
+  });
+
+  // 2. 模型对比
+  const modelNames = Object.values(state.modelResults).map(m => m.name);
+  const icVals = Object.values(state.modelResults).map(m => m.metrics.ic);
+  let r2OrAucVals;
+  if (cfg.task === 'regression') r2OrAucVals = Object.values(state.modelResults).map(m => m.metrics.r2_test);
+  else r2OrAucVals = Object.values(state.modelResults).map(m => m.metrics.auc);
+  state.charts.model = new Chart(document.getElementById('chartModel'), {
+    type: 'bar',
+    data: {
+      labels: modelNames,
+      datasets: [
+        { label: 'IC', data: icVals, backgroundColor: '#2563eb' },
+        { label: cfg.task === 'regression' ? 'R²(测试)' : 'AUC', data: r2OrAucVals, backgroundColor: '#16a34a' }
+      ]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: false } } }
+  });
+
+  // 3. 季度收益 / 各期命中率
+  const stratNames = Object.keys(state.strategyResults);
+  const quarterlyDatasets = stratNames.map((name, i) => ({
+    label: name, data: state.strategyResults[name].rets.map(v => v == null ? 0 : v),
+    backgroundColor: colors[i % colors.length] + 'cc', borderColor: colors[i % colors.length]
+  }));
+  state.charts.quarterly = new Chart(document.getElementById('chartQuarterly'), {
+    type: 'bar',
+    data: { labels, datasets: quarterlyDatasets },
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { title: { display: true, text: noReturn ? '命中率' : '季度收益' }, ticks: { callback: v => noReturn ? (v * 100).toFixed(0) + '%' : v.toFixed(2) } } } }
+  });
+
+  // 4. 特征重要性
+  const rfResult = Object.values(state.modelResults).find(m => m.metrics.featureImportance);
+  if (rfResult) {
+    const pairs = cfg.xCols.map((c, i) => [c, rfResult.metrics.featureImportance[i] || 0]).sort((a, b) => b[1] - a[1]).slice(0, 15).reverse();
+    state.charts.imp = new Chart(document.getElementById('chartImportance'), {
+      type: 'bar',
+      data: { labels: pairs.map(p => p[0]), datasets: [{ label: '重要性', data: pairs.map(p => p[1]), backgroundColor: '#dc2626' }] },
+      options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
+    });
+  }
+
+  // 5. 回撤曲线 / 命中率对比
+  if (noReturn) {
+    const stratEntries = Object.entries(state.strategyResults);
+    const ddLabels = stratEntries.map(([name]) => name.length > 16 ? name.slice(0, 16) + '…' : name);
+    const precisionVals = stratEntries.map(([name, r]) => r.metrics.precision);
+    const baseVal = (state.strategyResults['基准(阳性率)'] || {}).metrics ? state.strategyResults['基准(阳性率)'].metrics.precision : 0;
+    state.charts.dd = new Chart(document.getElementById('chartDrawdown'), {
+      type: 'bar',
+      data: {
+        labels: ddLabels,
+        datasets: [
+          { label: '平均命中率', data: precisionVals, backgroundColor: stratEntries.map(([n]) => n.startsWith('基准') ? '#888888' : '#2563eb') },
+          { label: '基准阳性率', data: stratEntries.map(() => baseVal), type: 'line', borderColor: '#dc2626', borderWidth: 2, pointRadius: 0, fill: false }
+        ]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { title: { display: true, text: '命中率' }, ticks: { callback: v => (v * 100).toFixed(0) + '%' } }, x: { ticks: { maxRotation: 45, minRotation: 30 } } } }
+    });
+  } else {
+    const ddDatasets = Object.entries(state.strategyResults).filter(([k]) => !k.startsWith('基准')).slice(0, 4).map(([name, r], i) => {
+      let eq = 1, peak = 1;
+      const dd = r.rets.map(v => { eq *= (1 + v); peak = Math.max(peak, eq); return (eq - peak) / peak; });
+      return { label: name, data: dd, borderColor: colors[(i + 1) % colors.length], tension: 0.2, pointRadius: 3 };
+    });
+    state.charts.dd = new Chart(document.getElementById('chartDrawdown'), {
+      type: 'line',
+      data: { labels, datasets: ddDatasets },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { title: { display: true, text: '回撤' } } } }
+    });
+  }
+}
+
+function renderRawTable(cfg) {
+  const tbl = document.getElementById('rawTable');
+  const modelKeys = Object.keys(state.modelResults);
+  const cols = ['日期', '标的ID', '实际Y', ...modelKeys.map(k => state.modelResults[k].name + '_预测')];
+  let html = '<thead><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+  cfg.testData.slice(0, 200).forEach((d, i) => {
+    let row = `<td>${d.date}</td><td>${d.id}</td><td>${d.yRaw.toFixed(4)}</td>`;
+    modelKeys.forEach(k => { row += `<td>${state.modelResults[k].preds[i].toFixed(4)}</td>`; });
+    html += `<tr>${row}</tr>`;
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
+/* ============================================================
+   事件绑定
+   ============================================================ */
+document.getElementById('uploadZone').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('uploadZone').addEventListener('dragover', e => { e.preventDefault(); e.currentTarget.classList.add('dragover'); });
+document.getElementById('uploadZone').addEventListener('dragleave', e => e.currentTarget.classList.remove('dragover'));
+document.getElementById('uploadZone').addEventListener('drop', e => {
+  e.preventDefault(); e.currentTarget.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+document.getElementById('fileInput').addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+  Papa.parse(file, {
+    header: true,
+    dynamicTyping: false,
+    skipEmptyLines: true,
+    complete: (results) => {
+      if (results.errors.length > 0) console.warn('CSV 警告:', results.errors);
+      state.rawData = results.data;
+      state.columns = results.meta.fields;
+      document.getElementById('fileInfo').classList.remove('hidden');
+      document.getElementById('fileInfo').textContent = `✓ ${file.name} — ${state.rawData.length} 行 × ${state.columns.length} 列`;
+      document.getElementById('step2').style.display = '';
+      document.getElementById('step3').style.display = '';
+      document.getElementById('clearDataBtn').classList.remove('hidden');
+      populateColumnSelects();
+      renderPreview();
+      toast(`已加载 ${state.rawData.length} 行数据`, 'success');
+    },
+    error: (err) => toast('解析失败: ' + err.message, 'error')
+  });
+}
+
+document.getElementById('loadSampleBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('loadSampleBtn');
+  btn.disabled = true;
+  btn.textContent = '加载中...';
+  toast('正在加载示例数据...', 'info');
+  // GitHub Pages / 本地服务器均可用，子目录优先
+  const paths = ['./data/model_data.csv', 'data/model_data.csv', '../data/model_data.csv', '../../data/model_data.csv'];
+  let loaded = false;
+  for (const p of paths) {
+    try {
+      const res = await fetch(p);
+      if (!res.ok) continue;
+      const text = await res.text();
+      if (!text || text.length < 100) continue;
+      Papa.parse(text, {
+        header: true, dynamicTyping: false, skipEmptyLines: true,
+        complete: (results) => {
+          if (!results.data || results.data.length === 0) return;
+          state.rawData = results.data;
+          state.columns = results.meta.fields;
+          document.getElementById('fileInfo').classList.remove('hidden');
+          document.getElementById('fileInfo').textContent = `✓ model_data.csv (示例) — ${state.rawData.length} 行 × ${state.columns.length} 列`;
+          document.getElementById('step2').style.display = '';
+          document.getElementById('step3').style.display = '';
+          document.getElementById('clearDataBtn').classList.remove('hidden');
+          populateColumnSelects();
+          renderPreview();
+          toast(`已加载示例数据 ${state.rawData.length} 行`, 'success');
+          loaded = true;
+        }
+      });
+      if (loaded) break;
+    } catch (e) { /* 尝试下一个路径 */ }
+  }
+  if (!loaded) {
+    toast('自动加载失败（file://协议限制）。请点击上方上传区，手动选择 task6/data/model_data.csv', 'error');
+  }
+  btn.disabled = false;
+  btn.textContent = '载入示例数据 (model_data.csv)';
+});
+
+document.getElementById('clearDataBtn').addEventListener('click', () => {
+  state.rawData = null;
+  document.getElementById('fileInfo').classList.add('hidden');
+  document.getElementById('step2').style.display = 'none';
+  document.getElementById('step3').style.display = 'none';
+  document.getElementById('step4').style.display = 'none';
+  document.getElementById('clearDataBtn').classList.add('hidden');
+  document.getElementById('fileInput').value = '';
+});
+
+document.getElementById('dateCol').addEventListener('change', updateSplitDates);
+document.getElementById('dateCol').addEventListener('change', renderXVarList);
+document.getElementById('idCol').addEventListener('change', renderXVarList);
+document.getElementById('yCol').addEventListener('change', renderXVarList);
+document.getElementById('taskType').addEventListener('change', e => renderStrategyList(e.target.value === 'auto' ? 'regression' : e.target.value));
+document.getElementById('selectAllX').addEventListener('click', () => {
+  document.querySelectorAll('#xVarList .var-item').forEach(el => { el.classList.add('selected'); el.querySelector('span:last-child').textContent = '✓'; });
+  state.xCols = state.columns.filter(c => c !== document.getElementById('dateCol').value && c !== document.getElementById('idCol').value && c !== document.getElementById('yCol').value);
+});
+document.getElementById('clearAllX').addEventListener('click', () => {
+  document.querySelectorAll('#xVarList .var-item').forEach(el => { el.classList.remove('selected'); el.querySelector('span:last-child').textContent = ''; });
+  state.xCols = [];
+});
+
+document.getElementById('runBtn').addEventListener('click', runAnalysis);
+
+// Tab 切换
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+    document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
+  });
+});
+
+// 初始化
+renderModelList();
+renderStrategyList('regression');
+</script>
+</body>
+</html>
